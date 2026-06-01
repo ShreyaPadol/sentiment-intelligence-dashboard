@@ -18,76 +18,127 @@ warnings.filterwarnings("ignore")
 
 st.set_page_config(
     page_title="Sentiment Intelligence Dashboard",
-    page_icon="📊",
+    page_icon=None,
     layout="wide",
     initial_sidebar_state="expanded",
 )
 
 st.markdown("""
 <style>
-    /* overall page padding */
-    .block-container { padding-top: 1.8rem; padding-bottom: 2rem; }
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+    html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
+
+    .block-container { padding: 2rem 2.5rem 2.5rem 2.5rem; }
+
+    /* page title */
+    h1 { font-size: 1.6rem !important; font-weight: 700 !important; color: #1a1a2e !important; letter-spacing: -0.02em; }
 
     /* metric cards */
     [data-testid="stMetric"] {
         background: #ffffff;
-        border-radius: 12px;
-        padding: 14px 18px;
-        box-shadow: 0 1px 4px rgba(0,0,0,0.08);
-        border-top: 4px solid #dee2e6;
+        border-radius: 8px;
+        padding: 16px 20px;
+        border: 1px solid #e5e7eb;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
     }
-    [data-testid="stMetricLabel"] { font-size: 0.78rem; color: #6c757d; font-weight: 600; letter-spacing: 0.03em; }
-    [data-testid="stMetricValue"] { font-size: 1.55rem; font-weight: 700; color: #212529; }
+    [data-testid="stMetricLabel"] {
+        font-size: 0.72rem !important;
+        font-weight: 600 !important;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: #6b7280 !important;
+    }
+    [data-testid="stMetricValue"] {
+        font-size: 1.6rem !important;
+        font-weight: 700 !important;
+        color: #111827 !important;
+    }
+    [data-testid="stMetricDelta"] { font-size: 0.78rem !important; }
 
-    /* section dividers */
-    .section-header {
-        font-size: 1.05rem;
+    /* section headers */
+    .section-title {
+        font-size: 0.8rem;
         font-weight: 700;
-        color: #343a40;
-        margin: 1.4rem 0 0.4rem 0;
-        padding-bottom: 6px;
-        border-bottom: 2px solid #e9ecef;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: #6b7280;
+        margin: 2rem 0 0.75rem 0;
+        padding-bottom: 8px;
+        border-bottom: 1px solid #e5e7eb;
     }
 
     /* insight cards */
     .insight-card {
         background: #ffffff;
-        border-radius: 10px;
-        padding: 13px 16px;
+        border-radius: 6px;
+        padding: 14px 18px;
         margin-bottom: 8px;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.06);
-        font-size: 0.92rem;
-        line-height: 1.5;
+        border: 1px solid #e5e7eb;
+        border-left-width: 4px;
+        font-size: 0.88rem;
+        line-height: 1.6;
+        color: #374151;
     }
 
     /* tabs */
-    .stTabs [data-baseweb="tab-list"] { gap: 4px; }
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 0;
+        border-bottom: 2px solid #e5e7eb;
+        background: transparent;
+    }
     .stTabs [data-baseweb="tab"] {
-        font-size: 0.88rem;
-        font-weight: 500;
-        padding: 8px 16px;
-        border-radius: 8px 8px 0 0;
+        font-size: 0.82rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        padding: 10px 20px;
+        border-radius: 0;
+        color: #6b7280;
+        border-bottom: 2px solid transparent;
+        margin-bottom: -2px;
+    }
+    .stTabs [aria-selected="true"] {
+        color: #1a1a2e !important;
+        border-bottom-color: #1a1a2e !important;
+        background: transparent !important;
     }
 
     /* sidebar */
-    div[data-testid="stSidebarContent"] { padding-top: 1.2rem; }
+    div[data-testid="stSidebarContent"] { padding-top: 1.5rem; background: #f9fafb; }
+    .st-emotion-cache-1gwvy71 h1 { font-size: 1rem !important; }
 
-    /* hide the plotly modebar by default */
-    .modebar { opacity: 0.3; }
-    .modebar:hover { opacity: 1; }
+    /* dataframe */
+    [data-testid="stDataFrame"] { border-radius: 8px; overflow: hidden; border: 1px solid #e5e7eb; }
+
+    /* buttons */
+    .stDownloadButton button {
+        font-size: 0.8rem !important;
+        font-weight: 600 !important;
+        letter-spacing: 0.04em;
+        border-radius: 6px !important;
+    }
+
+    /* hide plotly mode bar until hover */
+    .modebar { opacity: 0 !important; transition: opacity 0.2s; }
+    .modebar:hover { opacity: 1 !important; }
 </style>
 """, unsafe_allow_html=True)
 
 SENTIMENT_COLORS = {
-    "Positive": "#2ecc71",
-    "Neutral":  "#f39c12",
-    "Negative": "#e74c3c",
+    "Positive": "#16a34a",
+    "Neutral":  "#d97706",
+    "Negative": "#dc2626",
 }
 
-CHART_DEFAULTS = dict(
+CHART_LAYOUT = dict(
     template="plotly_white",
-    font=dict(family="Inter, Arial, sans-serif", size=12),
-    margin=dict(t=48, b=16, l=16, r=16),
+    font=dict(family="Inter, Arial, sans-serif", size=11, color="#374151"),
+    title_font=dict(size=12, color="#111827", family="Inter, Arial, sans-serif"),
+    margin=dict(t=48, b=20, l=20, r=20),
+    plot_bgcolor="#ffffff",
+    paper_bgcolor="#ffffff",
+    hoverlabel=dict(font_size=11, font_family="Inter, Arial, sans-serif"),
 )
 
 STOPWORDS = {
@@ -101,10 +152,8 @@ STOPWORDS = {
 }
 
 
-# ── helpers ──────────────────────────────────────────────────────────────────
-
 def section(label):
-    st.markdown(f'<div class="section-header">{label}</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="section-title">{label}</div>', unsafe_allow_html=True)
 
 
 def top_keywords(text, n=10):
@@ -120,18 +169,17 @@ def load_default_pune():
 
 def run_analysis(df):
     texts = df["_review_text"].fillna("").tolist()
-
-    with st.spinner("Running BERT sentiment analysis — this takes a moment on first load…"):
+    with st.spinner("Running BERT sentiment analysis — this takes a moment on first load."):
         results = predict_sentiment_batch(texts, batch_size=32)
 
-    df["sentiment"]    = [r["sentiment"]    for r in results]
-    df["confidence"]   = [r["confidence"]   for r in results]
-    df["bert_star"]    = [r["star_rating"]   for r in results]
-    df["prob_positive"]= [r["prob_positive"] for r in results]
-    df["prob_neutral"] = [r["prob_neutral"]  for r in results]
-    df["prob_negative"]= [r["prob_negative"] for r in results]
+    df["sentiment"]     = [r["sentiment"]    for r in results]
+    df["confidence"]    = [r["confidence"]   for r in results]
+    df["bert_star"]     = [r["star_rating"]  for r in results]
+    df["prob_positive"] = [r["prob_positive"] for r in results]
+    df["prob_neutral"]  = [r["prob_neutral"]  for r in results]
+    df["prob_negative"] = [r["prob_negative"] for r in results]
 
-    with st.spinner("Classifying issue categories…"):
+    with st.spinner("Classifying issue categories..."):
         df["issue_category"] = df["_review_text"].apply(classify_issue)
         df["issue_tags"]     = df["_review_text"].apply(
             lambda x: ", ".join(classify_issues_multi(x, top_n=2))
@@ -139,46 +187,42 @@ def run_analysis(df):
     return df
 
 
-# ── sidebar ───────────────────────────────────────────────────────────────────
-
 def sidebar():
-    st.sidebar.title("📂 Data Source")
+    st.sidebar.markdown("### Data Source")
     mode = st.sidebar.radio(
-        "Choose dataset",
-        ["Pune Retail Outlet (default)", "Upload your own CSV / XLSX"],
+        "Dataset",
+        ["Pune Retail Outlet (default)", "Upload CSV / XLSX"],
+        label_visibility="collapsed",
     )
 
     df_raw = None
     if mode == "Pune Retail Outlet (default)":
         df_raw = load_default_pune()
-        st.sidebar.success(f"Loaded {len(df_raw):,} reviews")
+        st.sidebar.success(f"{len(df_raw):,} reviews loaded")
     else:
-        uploaded = st.sidebar.file_uploader("Upload CSV or XLSX", type=["csv", "xlsx", "xls"])
+        uploaded = st.sidebar.file_uploader("Upload file", type=["csv", "xlsx", "xls"], label_visibility="collapsed")
         if uploaded:
             df_raw = pd.read_csv(uploaded) if uploaded.name.endswith(".csv") else pd.read_excel(uploaded)
-            st.sidebar.success(f"Loaded {len(df_raw):,} rows")
+            st.sidebar.success(f"{len(df_raw):,} rows loaded")
         else:
-            st.sidebar.info("Upload a file to get started")
-
+            st.sidebar.info("Upload a CSV or XLSX file to begin.")
     return df_raw
 
 
-# ── main ──────────────────────────────────────────────────────────────────────
-
 def main():
-    st.title("📊 Sentiment Intelligence Dashboard")
-    st.caption("BERT-powered review analysis · Issue categorisation · Time-series trends · Actionable insights")
+    st.title("Sentiment Intelligence Dashboard")
+    st.caption("BERT-powered review analysis  |  Issue categorisation  |  Time-series trends  |  Operational insights")
 
     df_raw = sidebar()
     if df_raw is None:
-        st.info("👈 Select or upload a dataset from the sidebar to begin.")
+        st.info("Select or upload a dataset from the sidebar to begin.")
         return
 
     df, _ = normalize_dataframe(df_raw.copy())
 
     if "_review_text" not in df.columns:
         st.error(
-            "Couldn't find a review text column. "
+            "Could not detect a review text column. "
             "Expected one of: review_text_final, text, review, comment, body."
         )
         st.dataframe(df.head())
@@ -194,9 +238,8 @@ def main():
     else:
         df = st.session_state.analyzed_df
 
-    # ── filters ──
     st.sidebar.markdown("---")
-    st.sidebar.subheader("🔍 Filters")
+    st.sidebar.markdown("### Filters")
 
     sel_sentiments = st.sidebar.multiselect(
         "Sentiment", sorted(df["sentiment"].unique()), default=sorted(df["sentiment"].unique())
@@ -226,11 +269,11 @@ def main():
         return
 
     tab1, tab2, tab3, tab4, tab5 = st.tabs([
-        "📈  Overview",
-        "🔖  Issue Analysis",
-        "📅  Time-Series",
-        "🔎  Deep Insights",
-        "📋  Data Explorer",
+        "Overview",
+        "Issue Analysis",
+        "Time-Series",
+        "Deep Insights",
+        "Data Explorer",
     ])
 
     with tab1:  tab_overview(df)
@@ -240,7 +283,9 @@ def main():
     with tab5:  tab_data(df, df_raw)
 
 
-# ── TAB 1 — Overview ─────────────────────────────────────────────────────────
+# ---------------------------------------------------------------------------
+# Tab 1 — Overview
+# ---------------------------------------------------------------------------
 
 def tab_overview(df):
     total = len(df)
@@ -248,62 +293,47 @@ def tab_overview(df):
     neg   = (df["sentiment"] == "Negative").sum()
     neu   = (df["sentiment"] == "Neutral").sum()
 
-    dominant = max(["Positive", "Neutral", "Negative"], key=lambda s: (df["sentiment"] == s).sum())
+    dominant  = max(["Positive", "Neutral", "Negative"], key=lambda s: (df["sentiment"] == s).sum())
     top_issue = df[df["sentiment"] == "Negative"]["issue_category"].value_counts()
-    top_issue_label = top_issue.index[0] if not top_issue.empty else "—"
 
-    # summary sentence
     st.markdown(
-        f"Analysed **{total:,}** reviews — sentiment is predominantly **{dominant}** "
-        f"({pos:,} positive · {neu:,} neutral · {neg:,} negative)."
+        f"Analysed **{total:,}** reviews. Sentiment is predominantly **{dominant}** "
+        f"({pos:,} positive, {neu:,} neutral, {neg:,} negative).",
+        help="Sentiment classified using nlptown/bert-base-multilingual-uncased-sentiment"
     )
-    st.markdown("<br>", unsafe_allow_html=True)
 
-    # row 1 — sentiment counts with coloured top borders
+    section("Sentiment Summary")
     c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Total Reviews", f"{total:,}")
-    c2.metric("Positive 😊", f"{pos:,}", f"{pos/total*100:.1f}% of total")
-    c3.metric("Neutral 😐",  f"{neu:,}", f"{neu/total*100:.1f}% of total")
-    c4.metric("Negative 😞", f"{neg:,}", f"{neg/total*100:.1f}% of total")
+    c1.metric("Total Reviews",  f"{total:,}")
+    c2.metric("Positive",       f"{pos:,}",  f"{pos/total*100:.1f}%")
+    c3.metric("Neutral",        f"{neu:,}",  f"{neu/total*100:.1f}%")
+    c4.metric("Negative",       f"{neg:,}",  f"{neg/total*100:.1f}%")
 
-    # colour the metric card borders to match sentiment
-    st.markdown("""
-    <style>
-    div[data-testid="column"]:nth-of-type(2) [data-testid="stMetric"] { border-top-color: #2ecc71; }
-    div[data-testid="column"]:nth-of-type(3) [data-testid="stMetric"] { border-top-color: #f39c12; }
-    div[data-testid="column"]:nth-of-type(4) [data-testid="stMetric"] { border-top-color: #e74c3c; }
-    </style>
-    """, unsafe_allow_html=True)
-
-    # row 2 — rating / BERT averages
     if "_rating" in df.columns:
         avg_r    = df["_rating"].dropna().mean()
         bert_avg = df["bert_star"].mean()
         r1, r2, r3 = st.columns(3)
-        r1.metric("Avg User Rating",    f"{avg_r:.2f} ⭐")
-        r2.metric("Avg BERT Stars",     f"{bert_avg:.2f} ⭐", f"{bert_avg - avg_r:+.2f} vs user")
-        r3.metric("Top Pain Point",     top_issue_label,
-                  f"{top_issue.iloc[0]:,} negative reviews" if not top_issue.empty else "")
+        r1.metric("Avg User Rating",  f"{avg_r:.2f} / 5")
+        r2.metric("Avg BERT Stars",   f"{bert_avg:.2f} / 5", f"{bert_avg - avg_r:+.2f} vs user rating")
+        if not top_issue.empty:
+            r3.metric("Top Negative Issue", top_issue.index[0], f"{top_issue.iloc[0]:,} negative reviews")
 
-    st.markdown("")
-
-    # charts row 1
     section("Sentiment Distribution")
-    left, right = st.columns(2)
+    col1, col2 = st.columns(2)
 
-    with left:
+    with col1:
         counts = df["sentiment"].value_counts().reset_index()
         counts.columns = ["Sentiment", "Count"]
         fig = px.pie(
             counts, names="Sentiment", values="Count",
             color="Sentiment", color_discrete_map=SENTIMENT_COLORS,
-            hole=0.45,
+            hole=0.5,
         )
-        fig.update_traces(textposition="outside", textinfo="percent+label")
-        fig.update_layout(**CHART_DEFAULTS, showlegend=False, height=320)
+        fig.update_traces(textposition="outside", textinfo="percent+label", textfont_size=11)
+        fig.update_layout(**CHART_LAYOUT, showlegend=False, height=320, title_text="Overall Sentiment Split")
         st.plotly_chart(fig, use_container_width=True)
 
-    with right:
+    with col2:
         if "_rating" in df.columns:
             rs = df.groupby(["_rating", "sentiment"]).size().reset_index(name="count")
             fig2 = px.bar(
@@ -312,19 +342,18 @@ def tab_overview(df):
                 barmode="stack",
                 labels={"_rating": "Star Rating", "count": "Reviews", "sentiment": "Sentiment"},
             )
-            fig2.update_layout(**CHART_DEFAULTS, height=320, title_text="How Ratings Align with Sentiment")
+            fig2.update_layout(**CHART_LAYOUT, height=320, title_text="BERT Sentiment by User Star Rating")
             st.plotly_chart(fig2, use_container_width=True)
 
-    # charts row 2 — top keywords per sentiment
-    section("Most Common Words by Sentiment")
+    section("Top Keywords by Sentiment")
     kc1, kc2, kc3 = st.columns(3)
     for col, sentiment, color in zip(
         [kc1, kc2, kc3],
         ["Positive", "Neutral", "Negative"],
-        ["#2ecc71", "#f39c12", "#e74c3c"],
+        ["#16a34a", "#d97706", "#dc2626"],
     ):
-        text_blob = " ".join(df[df["sentiment"] == sentiment]["_review_text"].dropna())
-        kws = top_keywords(text_blob, n=10)
+        blob = " ".join(df[df["sentiment"] == sentiment]["_review_text"].dropna())
+        kws  = top_keywords(blob, n=10)
         if kws:
             kw_df = pd.DataFrame(kws, columns=["Word", "Count"]).sort_values("Count")
             fig_k = px.bar(
@@ -333,30 +362,31 @@ def tab_overview(df):
                 labels={"Count": "Frequency", "Word": ""},
             )
             fig_k.update_layout(
-                **CHART_DEFAULTS,
+                **CHART_LAYOUT,
                 title_text=f"{sentiment} — Top Keywords",
                 showlegend=False,
                 height=300,
-                margin=dict(t=44, b=10, l=8, r=8),
+                margin=dict(t=44, b=12, l=8, r=8),
             )
             col.plotly_chart(fig_k, use_container_width=True)
 
-    # model confidence
     section("Model Confidence")
     fig3 = px.histogram(
         df, x="confidence", color="sentiment",
         color_discrete_map=SENTIMENT_COLORS,
-        nbins=35, barmode="overlay", opacity=0.72,
-        labels={"confidence": "Confidence Score", "count": "Reviews", "sentiment": "Sentiment"},
+        nbins=35, barmode="overlay", opacity=0.7,
+        labels={"confidence": "Confidence Score", "sentiment": "Sentiment"},
     )
-    fig3.update_layout(**CHART_DEFAULTS, height=280, title_text="Confidence Score Distribution by Sentiment")
+    fig3.update_layout(**CHART_LAYOUT, height=260, title_text="BERT Confidence Score Distribution")
     st.plotly_chart(fig3, use_container_width=True)
 
 
-# ── TAB 2 — Issue Analysis ────────────────────────────────────────────────────
+# ---------------------------------------------------------------------------
+# Tab 2 — Issue Analysis
+# ---------------------------------------------------------------------------
 
 def tab_issues(df):
-    section("Reviews by Issue Category")
+    section("Review Volume by Issue Category")
     issue_sent = df.groupby(["issue_category", "sentiment"]).size().reset_index(name="count")
     fig = px.bar(
         issue_sent, x="issue_category", y="count",
@@ -365,7 +395,7 @@ def tab_issues(df):
         labels={"issue_category": "Issue Category", "count": "Reviews", "sentiment": "Sentiment"},
     )
     fig.update_xaxes(tickangle=35)
-    fig.update_layout(**CHART_DEFAULTS, height=380, title_text="Review Volume by Issue & Sentiment")
+    fig.update_layout(**CHART_LAYOUT, height=380, title_text="Reviews by Issue Category and Sentiment")
     st.plotly_chart(fig, use_container_width=True)
 
     col1, col2 = st.columns(2)
@@ -376,15 +406,15 @@ def tab_issues(df):
         ic.columns = ["Category", "Count"]
         fig2 = px.pie(
             ic, names="Category", values="Count",
-            hole=0.38,
+            hole=0.4,
             color_discrete_sequence=px.colors.qualitative.Safe,
         )
-        fig2.update_traces(textposition="outside", textinfo="percent+label")
-        fig2.update_layout(**CHART_DEFAULTS, showlegend=False, height=360)
+        fig2.update_traces(textposition="outside", textinfo="percent+label", textfont_size=10)
+        fig2.update_layout(**CHART_LAYOUT, showlegend=False, height=380)
         st.plotly_chart(fig2, use_container_width=True)
 
     with col2:
-        section("Negativity Rate per Category")
+        section("Negative Rate per Category")
         neg_rate = (
             df.groupby("issue_category")
             .apply(lambda x: (x["sentiment"] == "Negative").mean() * 100)
@@ -394,47 +424,49 @@ def tab_issues(df):
         fig3 = px.bar(
             neg_rate, x="pct", y="issue_category", orientation="h",
             color="pct", color_continuous_scale="Reds",
-            labels={"pct": "% Negative Reviews", "issue_category": ""},
+            labels={"pct": "Negative Reviews (%)", "issue_category": ""},
         )
-        fig3.update_layout(**CHART_DEFAULTS, height=360, showlegend=False,
-                           title_text="% of Reviews that are Negative")
+        fig3.update_layout(**CHART_LAYOUT, height=380, showlegend=False,
+                           title_text="Proportion of Negative Reviews per Category")
         st.plotly_chart(fig3, use_container_width=True)
 
     if "_title" in df.columns and df["_title"].nunique() > 1:
-        section("Outlet × Issue Heatmap")
+        section("Outlet vs Issue Category — Review Count")
         pivot = df.groupby(["_title", "issue_category"]).size().unstack(fill_value=0)
         fig4 = px.imshow(
             pivot, aspect="auto", color_continuous_scale="YlOrRd",
             labels={"x": "Issue Category", "y": "Outlet", "color": "Reviews"},
         )
-        fig4.update_layout(**CHART_DEFAULTS, height=420, margin=dict(t=48, b=16, l=160, r=16))
+        fig4.update_layout(**CHART_LAYOUT, height=420, margin=dict(t=48, b=20, l=170, r=20))
         st.plotly_chart(fig4, use_container_width=True)
 
-    section("Browse Negative Reviews by Issue")
-    selected = st.selectbox("Select an issue category", sorted(df["issue_category"].unique()))
+    section("Browse Negative Reviews")
+    selected = st.selectbox("Issue category", sorted(df["issue_category"].unique()), label_visibility="collapsed")
     neg_samples = df[
         (df["issue_category"] == selected) & (df["sentiment"] == "Negative")
     ][["_review_text", "_rating", "confidence"]].head(10)
 
     if neg_samples.empty:
-        st.info("No negative reviews for this category with the current filters applied.")
+        st.info("No negative reviews for this category under the current filters.")
     else:
         st.dataframe(
             neg_samples.rename(columns={
                 "_review_text": "Review Text",
-                "_rating": "User Rating",
-                "confidence": "BERT Confidence",
+                "_rating":      "User Rating",
+                "confidence":   "BERT Confidence",
             }),
             use_container_width=True,
-            height=320,
+            height=300,
         )
 
 
-# ── TAB 3 — Time-Series ───────────────────────────────────────────────────────
+# ---------------------------------------------------------------------------
+# Tab 3 — Time-Series
+# ---------------------------------------------------------------------------
 
 def tab_timeseries(df):
     if "_date" not in df.columns or df["_date"].notna().sum() < 5:
-        st.info("No date column detected — time-series analysis is not available for this dataset.")
+        st.info("No date column detected. Time-series analysis is not available for this dataset.")
         return
 
     df_t = df[df["_date"].notna()].copy()
@@ -442,23 +474,23 @@ def tab_timeseries(df):
     df_t["week"]    = df_t["_date"].dt.to_period("W").dt.to_timestamp()
     df_t["quarter"] = df_t["_date"].dt.to_period("Q").dt.to_timestamp()
 
-    granularity = st.radio("View by", ["Monthly", "Weekly", "Quarterly"], horizontal=True)
+    granularity = st.radio("Granularity", ["Monthly", "Weekly", "Quarterly"], horizontal=True)
     period_col  = {"Monthly": "month", "Weekly": "week", "Quarterly": "quarter"}[granularity]
 
     section("Sentiment Volume Over Time")
     sent_trend = df_t.groupby([period_col, "sentiment"]).size().reset_index(name="count")
     fig = px.line(
         sent_trend, x=period_col, y="count",
-        color="sentiment", color_discrete_map=SENTIMENT_COLORS,
-        markers=True,
+        color="sentiment", color_discrete_map=SENTIMENT_COLORS, markers=True,
         labels={period_col: "Period", "count": "Reviews", "sentiment": "Sentiment"},
     )
-    fig.update_layout(**CHART_DEFAULTS, height=340, title_text=f"Review Volume by Sentiment ({granularity})")
+    fig.update_layout(**CHART_LAYOUT, height=340, title_text=f"Review Volume by Sentiment ({granularity})")
     st.plotly_chart(fig, use_container_width=True)
 
     section("Sentiment Share Over Time")
     pct_data = (
-        sent_trend.pivot_table(index=period_col, columns="sentiment", values="count", fill_value=0)
+        sent_trend
+        .pivot_table(index=period_col, columns="sentiment", values="count", fill_value=0)
         .pipe(lambda d: d.div(d.sum(axis=1), axis=0) * 100)
         .reset_index()
         .melt(id_vars=period_col, var_name="Sentiment", value_name="Percent")
@@ -468,29 +500,29 @@ def tab_timeseries(df):
         color="Sentiment", color_discrete_map=SENTIMENT_COLORS,
         labels={period_col: "Period", "Percent": "Share (%)"},
     )
-    fig2.update_layout(**CHART_DEFAULTS, height=300, title_text=f"Sentiment Share % ({granularity})")
+    fig2.update_layout(**CHART_LAYOUT, height=300, title_text=f"Sentiment Share % ({granularity})")
     st.plotly_chart(fig2, use_container_width=True)
 
     if "_rating" in df_t.columns:
-        section("Average Rating & Review Volume")
+        section("Average Rating and Review Volume")
         rt = df_t.groupby(period_col)["_rating"].agg(["mean", "count"]).reset_index()
         rt.columns = [period_col, "avg_rating", "review_count"]
         fig3 = go.Figure()
         fig3.add_trace(go.Scatter(
             x=rt[period_col], y=rt["avg_rating"],
             mode="lines+markers", name="Avg Rating",
-            line=dict(color="#3498db", width=2.5),
+            line=dict(color="#2563eb", width=2),
         ))
         fig3.add_trace(go.Bar(
             x=rt[period_col], y=rt["review_count"],
-            name="Review Count", opacity=0.25,
-            marker_color="#95a5a6", yaxis="y2",
+            name="Review Count", opacity=0.2,
+            marker_color="#9ca3af", yaxis="y2",
         ))
         fig3.update_layout(
-            **CHART_DEFAULTS,
+            **CHART_LAYOUT,
             height=320,
-            title_text=f"Avg Rating & Volume ({granularity})",
-            yaxis=dict(title="Avg Rating", range=[0.8, 5.2]),
+            title_text=f"Avg Rating and Review Volume ({granularity})",
+            yaxis=dict(title="Avg Rating", range=[0.8, 5.2], gridcolor="#f3f4f6"),
             yaxis2=dict(title="Review Count", overlaying="y", side="right"),
             legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0),
         )
@@ -509,15 +541,12 @@ def tab_timeseries(df):
         color="issue_category", markers=True,
         labels={period_col: "Period", "count": "Reviews", "issue_category": "Issue"},
     )
-    fig4.update_layout(**CHART_DEFAULTS, height=340, title_text=f"Top 6 Issue Categories ({granularity})")
+    fig4.update_layout(**CHART_LAYOUT, height=340, title_text=f"Top 6 Issue Categories ({granularity})")
     st.plotly_chart(fig4, use_container_width=True)
 
-    # spike detection
     neg_by_period = (
         df_t[df_t["sentiment"] == "Negative"]
-        .groupby(period_col)
-        .size()
-        .reset_index(name="neg_count")
+        .groupby(period_col).size().reset_index(name="neg_count")
     )
     if len(neg_by_period) >= 4:
         mean_n = neg_by_period["neg_count"].mean()
@@ -526,21 +555,24 @@ def tab_timeseries(df):
         spikes = neg_by_period[neg_by_period["spike"]]
         if not spikes.empty:
             st.warning(
-                "⚠️ **Negative review spike detected** in: "
+                "Negative review spike detected in: "
                 + ", ".join(spikes[period_col].astype(str).tolist())
             )
+            section("Negative Review Spikes")
             fig5 = px.bar(
                 neg_by_period, x=period_col, y="neg_count",
                 color="spike",
-                color_discrete_map={True: "#e74c3c", False: "#adb5bd"},
-                labels={period_col: "Period", "neg_count": "Negative Reviews", "spike": "Spike"},
+                color_discrete_map={True: "#dc2626", False: "#d1d5db"},
+                labels={period_col: "Period", "neg_count": "Negative Reviews"},
             )
-            fig5.update_layout(**CHART_DEFAULTS, height=280, title_text="Negative Review Spikes",
-                               showlegend=False)
+            fig5.update_layout(**CHART_LAYOUT, height=260, showlegend=False,
+                               title_text="Negative Review Volume — Spikes Highlighted")
             st.plotly_chart(fig5, use_container_width=True)
 
 
-# ── TAB 4 — Deep Insights ─────────────────────────────────────────────────────
+# ---------------------------------------------------------------------------
+# Tab 4 — Deep Insights
+# ---------------------------------------------------------------------------
 
 def tab_insights(df):
     total     = len(df)
@@ -550,45 +582,46 @@ def tab_insights(df):
     section("Automated Insights")
 
     insights = []
+
     if neg_pct > 50:
-        insights.append(("#ffeaea", "#e74c3c",
-            f"🔴 <b>High negativity alert</b> — {neg_pct:.1f}% of reviews are negative. Immediate attention required."))
+        insights.append(("#fef2f2", "#dc2626",
+            f"<b>High Negativity</b> — {neg_pct:.1f}% of reviews are negative. Immediate operational attention is required."))
     elif neg_pct > 30:
-        insights.append(("#fff4e5", "#f39c12",
-            f"🟠 <b>Moderate negativity</b> — {neg_pct:.1f}% of reviews are negative."))
+        insights.append(("#fffbeb", "#d97706",
+            f"<b>Moderate Negativity</b> — {neg_pct:.1f}% of reviews are negative. There is clear room for improvement."))
     else:
-        insights.append(("#eafaf1", "#2ecc71",
-            f"🟢 <b>Broadly positive</b> — only {neg_pct:.1f}% of reviews are negative."))
+        insights.append(("#f0fdf4", "#16a34a",
+            f"<b>Broadly Positive</b> — Only {neg_pct:.1f}% of reviews are negative."))
 
     neg_issues = df[df["sentiment"] == "Negative"]["issue_category"].value_counts()
     if not neg_issues.empty:
         ti, tc = neg_issues.index[0], neg_issues.iloc[0]
-        insights.append(("#fff4e5", "#f39c12",
-            f"⚠️ <b>Top pain point</b> — '{ti}' has {tc} negative reviews "
+        insights.append(("#fffbeb", "#d97706",
+            f"<b>Top Pain Point</b> — '{ti}' accounts for {tc} negative reviews "
             f"({tc/neg_count*100:.1f}% of all negatives)."))
 
     staff_neg = ((df["issue_category"] == "Staff Behaviour") & (df["sentiment"] == "Negative")).sum()
     if staff_neg > 0:
-        insights.append(("#fdf2f8", "#8e44ad",
-            f"👥 <b>Staff behaviour</b> — {staff_neg} reviews flag staff-related issues."))
+        insights.append(("#faf5ff", "#7c3aed",
+            f"<b>Staff Behaviour</b> — {staff_neg} reviews raise concerns about staff conduct. Staff training is recommended."))
 
     cng_neg = ((df["issue_category"] == "CNG Availability") & (df["sentiment"] == "Negative")).sum()
     if cng_neg > 0:
-        insights.append(("#ffeaea", "#e74c3c",
-            f"⛽ <b>CNG availability</b> — {cng_neg} negative reviews about CNG being unavailable."))
+        insights.append(("#fef2f2", "#dc2626",
+            f"<b>CNG Availability</b> — {cng_neg} negative reviews specifically mention CNG unavailability."))
 
     billing_neg = ((df["issue_category"] == "Billing or Trust Issue") & (df["sentiment"] == "Negative")).sum()
     if billing_neg > 0:
-        insights.append(("#ffeaea", "#e74c3c",
-            f"💳 <b>Trust &amp; billing</b> — {billing_neg} reviews mention fraud or incorrect billing."))
+        insights.append(("#fef2f2", "#dc2626",
+            f"<b>Billing and Trust</b> — {billing_neg} reviews flag incorrect billing or fraudulent behaviour."))
 
     if "_rating" in df.columns:
         mismatch = ((df["_rating"] >= 4) & (df["sentiment"] == "Negative")).sum()
         if mismatch > 0:
-            insights.append(("#eaf3fb", "#2980b9",
-                f"🔍 <b>Rating–sentiment mismatch</b> — {mismatch} reviews have ≥4 stars "
-                f"but BERT classifies them as negative. Customers may be leaving polite ratings "
-                f"despite negative experiences."))
+            insights.append(("#eff6ff", "#2563eb",
+                f"<b>Rating–Sentiment Mismatch</b> — {mismatch} reviews carry a 4–5 star rating yet "
+                f"BERT detects negative sentiment. Customers may be leaving courtesy ratings "
+                f"despite genuinely negative experiences."))
 
     if "_title" in df.columns and df["_title"].nunique() > 1:
         op = (
@@ -596,36 +629,35 @@ def tab_insights(df):
             .apply(lambda x: (x["sentiment"] == "Positive").mean())
             .sort_values(ascending=False)
         )
-        insights.append(("#eafaf1", "#27ae60",
-            f"🏆 <b>Best outlet</b> — '{op.index[0]}' ({op.iloc[0]*100:.1f}% positive). "
+        insights.append(("#f0fdf4", "#16a34a",
+            f"<b>Outlet Performance</b> — Best performing: '{op.index[0]}' ({op.iloc[0]*100:.1f}% positive). "
             f"Lowest performing: '{op.index[-1]}' ({op.iloc[-1]*100:.1f}% positive)."))
 
     for bg, border, text in insights:
         st.markdown(
-            f'<div class="insight-card" style="border-left:4px solid {border};background:{bg};">'
-            f'{text}</div>',
+            f'<div class="insight-card" style="border-left-color:{border};background:{bg};">{text}</div>',
             unsafe_allow_html=True,
         )
 
-    st.markdown("")
+    st.markdown("<br>", unsafe_allow_html=True)
 
     if "_rating" in df.columns:
         col1, col2 = st.columns(2)
-
         with col1:
-            section("Rating vs BERT Sentiment (Heatmap)")
+            section("Rating vs BERT Sentiment")
             cross = pd.crosstab(df["_rating"].round(0).astype(int), df["sentiment"])
             fig = px.imshow(
-                cross, color_continuous_scale="RdYlGn",
+                cross, color_continuous_scale="RdYlGn", aspect="auto",
                 labels={"x": "BERT Sentiment", "y": "User Rating", "color": "Count"},
-                aspect="auto",
             )
-            fig.update_layout(**CHART_DEFAULTS, height=320)
+            fig.update_layout(**CHART_LAYOUT, height=320)
             st.plotly_chart(fig, use_container_width=True)
-            st.caption("Cells in the top-left corner (high rating, negative sentiment) represent hidden dissatisfaction.")
-
+            st.caption(
+                "Top-left cells (high user rating, negative BERT sentiment) indicate courtesy ratings "
+                "that mask genuine dissatisfaction."
+            )
         with col2:
-            section("Sentiment by Star Rating")
+            section("Sentiment Composition by Star Rating")
             rs = df.groupby(["_rating", "sentiment"]).size().reset_index(name="count")
             rs["pct"] = rs.groupby("_rating")["count"].transform(lambda x: x / x.sum() * 100)
             fig2 = px.bar(
@@ -634,7 +666,7 @@ def tab_insights(df):
                 barmode="stack",
                 labels={"_rating": "Star Rating", "pct": "Share (%)", "sentiment": "Sentiment"},
             )
-            fig2.update_layout(**CHART_DEFAULTS, height=320, title_text="Sentiment Mix per Rating")
+            fig2.update_layout(**CHART_LAYOUT, height=320, title_text="Sentiment Mix per Rating Band")
             st.plotly_chart(fig2, use_container_width=True)
 
     if "_title" in df.columns and df["_title"].nunique() > 1:
@@ -659,7 +691,11 @@ def tab_insights(df):
             sc.style
                 .background_gradient(subset=["Negative %"], cmap="Reds")
                 .background_gradient(subset=["Positive %"], cmap="Greens")
-                .format({"Positive %": "{:.1f}", "Negative %": "{:.1f}", "Avg Confidence": "{:.2f}"}),
+                .format({
+                    "Positive %": "{:.1f}",
+                    "Negative %": "{:.1f}",
+                    "Avg Confidence": "{:.2f}",
+                }),
             use_container_width=True,
         )
 
@@ -669,12 +705,12 @@ def tab_insights(df):
         .value_counts(normalize=True)
         .head(5)
     )
-    priority_labels = ["🔴 Critical", "🟠 High", "🟡 Medium", "🟡 Medium", "🟢 Low"]
+    priority_labels = ["Critical", "High", "Medium", "Medium", "Low"]
     rows = [
         {
-            "Priority":       priority_labels[i],
-            "Issue Area":     issue,
-            "Negative Share": f"{rate*100:.1f}%",
+            "Priority":           priority_labels[i],
+            "Issue Area":         issue,
+            "Negative Share":     f"{rate*100:.1f}%",
             "Recommended Action": _action_for(issue),
         }
         for i, (issue, rate) in enumerate(neg_rates.items())
@@ -685,28 +721,33 @@ def tab_insights(df):
 
 def _action_for(issue):
     lookup = {
-        "Staff Behaviour":           "Conduct staff training; implement service feedback at point-of-sale.",
-        "Waiting Time":              "Review lane management; add attendants during peak hours.",
-        "Payment Issue":             "Audit POS terminals; ensure all digital payment channels are working.",
-        "Billing or Trust Issue":    "Install display meters; run oversight audits; publicise anti-fraud policy.",
-        "CNG Availability":          "Monitor CNG supply chain; keep backup connections active.",
-        "Cleanliness":               "Increase cleaning frequency; assign dedicated housekeeping staff.",
-        "Fuel Quality":              "Run regular quality checks; display fuel certifications visibly.",
-        "Facility Maintenance":      "Set up a preventive maintenance schedule; track equipment health.",
-        "Customer Amenities":        "Upgrade water and restroom facilities; add seating where space allows.",
-        "Safety Concern":            "Conduct a safety audit; reinforce signage and fire-safety equipment.",
-        "Traffic or Queue Management": "Redesign lane flow; consider a queue management display system.",
-        "Accessibility":             "Improve signage and wayfinding; ensure disabled access is clear.",
+        "Staff Behaviour":             "Conduct targeted staff training and implement a service feedback mechanism at point-of-sale.",
+        "Waiting Time":                "Review lane management and staffing levels; consider additional attendants during peak hours.",
+        "Payment Issue":               "Audit all POS terminals and ensure every digital payment channel is fully operational.",
+        "Billing or Trust Issue":      "Install display meters, run regular oversight audits, and publicise the anti-fraud policy.",
+        "CNG Availability":            "Monitor the CNG supply chain proactively and keep backup connections active.",
+        "Cleanliness":                 "Increase cleaning frequency and assign dedicated housekeeping staff to the site.",
+        "Fuel Quality":                "Schedule regular independent quality checks and display fuel certification prominently.",
+        "Facility Maintenance":        "Implement a preventive maintenance schedule and track equipment health centrally.",
+        "Customer Amenities":          "Upgrade water and restroom facilities and add seating where space permits.",
+        "Safety Concern":              "Conduct a full safety audit and reinforce signage and fire-safety equipment.",
+        "Traffic or Queue Management": "Redesign lane flow and consider installing a queue management display system.",
+        "Accessibility":               "Improve directional signage and ensure disabled access pathways are clear.",
     }
     return lookup.get(issue, "Investigate the root cause and implement a targeted operational improvement.")
 
 
-# ── TAB 5 — Data Explorer ────────────────────────────────────────────────────
+# ---------------------------------------------------------------------------
+# Tab 5 — Data Explorer
+# ---------------------------------------------------------------------------
 
 def tab_data(df, df_raw):
     section("Analysed Reviews")
 
-    display_cols = ["_review_text", "_rating", "sentiment", "bert_star", "confidence", "issue_category", "issue_tags"]
+    display_cols = [
+        "_review_text", "_rating", "sentiment", "bert_star",
+        "confidence", "issue_category", "issue_tags",
+    ]
     display_cols = [c for c in display_cols if c in df.columns]
 
     col_rename = {
@@ -727,14 +768,14 @@ def tab_data(df, df_raw):
 
     csv_bytes = df[display_cols].rename(columns=col_rename).to_csv(index=False).encode()
     st.download_button(
-        "⬇️  Download Results as CSV",
+        "Download Results as CSV",
         data=csv_bytes,
         file_name="sentiment_results.csv",
         mime="text/csv",
     )
 
     st.markdown("---")
-    section("Raw Data Preview (first 50 rows)")
+    section("Raw Data — First 50 Rows")
     st.dataframe(df_raw.head(50), use_container_width=True)
 
 
