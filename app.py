@@ -1,11 +1,11 @@
+import re
 import warnings
 import numpy as np
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
-import matplotlib.pyplot as plt
-from wordcloud import WordCloud
+from collections import Counter
 
 from sentiment_engine import (
     predict_sentiment_batch,
@@ -23,6 +23,24 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded",
 )
+
+# inject a bit of custom css to tighten things up
+st.markdown("""
+<style>
+    [data-testid="stMetric"] {
+        background: #f8f9fa;
+        border-radius: 10px;
+        padding: 12px 16px;
+        border-left: 4px solid #dee2e6;
+    }
+    [data-testid="stMetricLabel"] { font-size: 0.8rem; color: #6c757d; }
+    [data-testid="stMetricValue"] { font-size: 1.6rem; font-weight: 700; }
+    .block-container { padding-top: 1.5rem; }
+    h2 { margin-top: 1.2rem !important; }
+    .stTabs [data-baseweb="tab"] { font-size: 0.9rem; }
+    div[data-testid="stSidebarContent"] { padding-top: 1rem; }
+</style>
+""", unsafe_allow_html=True)
 
 SENTIMENT_COLORS = {
     "Positive": "#2ecc71",
@@ -105,7 +123,6 @@ def main():
 
     df = df[df["_review_text"].notna() & (df["_review_text"].str.strip() != "")].reset_index(drop=True)
 
-    # use session state to avoid re-running the model on every interaction
     cache_key = str(len(df)) + str(df["_review_text"].iloc[0])
     if st.session_state.get("analyzed_hash") != cache_key:
         df = run_analysis(df)
@@ -114,7 +131,6 @@ def main():
     else:
         df = st.session_state.analyzed_df
 
-    # sidebar filters
     st.sidebar.markdown("---")
     st.sidebar.subheader("🔍 Filters")
 
@@ -177,18 +193,30 @@ def show_overview(df):
     neg = (df["sentiment"] == "Negative").sum()
     neu = (df["sentiment"] == "Neutral").sum()
 
+    # quick one-liner summary at the top
+    dominant = max(["Positive", "Neutral", "Negative"], key=lambda s: (df["sentiment"] == s).sum())
+    st.markdown(
+        f"Analysed **{total}** reviews — sentiment is predominantly **{dominant.lower()}** "
+        f"({pos} positive · {neu} neutral · {neg} negative)."
+    )
+    st.markdown("")
+
     c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Total Reviews", total)
-    c2.metric("Positive 😊", f"{pos} ({pos/total*100:.1f}%)")
-    c3.metric("Neutral 😐", f"{neu} ({neu/total*100:.1f}%)")
-    c4.metric("Negative 😞", f"{neg} ({neg/total*100:.1f}%)")
+    c1.metric("Total Reviews", f"{total:,}")
+    c2.metric("Positive 😊", f"{pos:,}", f"{pos/total*100:.1f}%")
+    c3.metric("Neutral 😐", f"{neu:,}", f"{neu/total*100:.1f}%")
+    c4.metric("Negative 😞", f"{neg:,}", f"-{neg/total*100:.1f}%")
 
     if "_rating" in df.columns:
         avg_r = df["_rating"].dropna().mean()
         bert_avg = df["bert_star"].mean()
-        c1b, c2b = st.columns(2)
+        delta = bert_avg - avg_r
+        c1b, c2b, c3b = st.columns(3)
         c1b.metric("Avg User Rating", f"{avg_r:.2f} ⭐")
-        c2b.metric("Avg BERT-Predicted Stars", f"{bert_avg:.2f} ⭐")
+        c2b.metric("Avg BERT Stars", f"{bert_avg:.2f} ⭐", f"{delta:+.2f} vs user")
+        top_issue = df[df["sentiment"] == "Negative"]["issue_category"].value_counts()
+        if not top_issue.empty:
+            c3b.metric("Top Pain Point", top_issue.index[0], f"{top_issue.iloc[0]} neg. reviews")
 
     col1, col2 = st.columns(2)
 
@@ -241,27 +269,44 @@ def show_overview(df):
     fig3.update_layout(margin=dict(t=40, b=10))
     st.plotly_chart(fig3, use_container_width=True)
 
-    st.subheader("Word Clouds")
-    wc1, wc2, wc3 = st.columns(3)
-    for col, sentiment, cmap in zip(
-        [wc1, wc2, wc3],
+    st.subheader("Most Frequent Words by Sentiment")
+    _stopwords = {
+        "the", "a", "an", "is", "it", "in", "of", "and", "to", "for", "with",
+        "on", "at", "by", "from", "this", "was", "are", "be", "not", "but",
+        "have", "had", "has", "they", "their", "there", "that", "very", "so",
+        "my", "we", "i", "its", "here", "get", "got", "also", "just", "no",
+        "or", "as", "do", "did", "been", "all", "one", "if", "up", "out",
+        "about", "than", "more", "when", "will", "can",
+    }
+
+    kw_cols = st.columns(3)
+    for col, sentiment, color in zip(
+        kw_cols,
         ["Positive", "Neutral", "Negative"],
-        ["Greens", "Oranges", "Reds"],
+        ["#2ecc71", "#f39c12", "#e74c3c"],
     ):
         texts = " ".join(df[df["sentiment"] == sentiment]["_review_text"].dropna().tolist())
-        if texts.strip():
-            wc = WordCloud(
-                width=400, height=250,
-                background_color="white",
-                colormap=cmap,
-                max_words=80,
-            ).generate(texts)
-            fig_wc, ax = plt.subplots(figsize=(4, 2.5))
-            ax.imshow(wc, interpolation="bilinear")
-            ax.axis("off")
-            ax.set_title(sentiment, fontsize=10)
-            col.pyplot(fig_wc, use_container_width=True)
-            plt.close(fig_wc)
+        words = re.findall(r"\b[a-z]{3,}\b", texts.lower())
+        words = [w for w in words if w not in _stopwords]
+        if words:
+            top = Counter(words).most_common(10)
+            kw_df = pd.DataFrame(top, columns=["Word", "Count"]).sort_values("Count")
+            fig_kw = px.bar(
+                kw_df,
+                x="Count",
+                y="Word",
+                orientation="h",
+                title=f"{sentiment} Reviews – Top Keywords",
+                color_discrete_sequence=[color],
+            )
+            fig_kw.update_layout(
+                margin=dict(t=40, b=10, l=10, r=10),
+                showlegend=False,
+                yaxis_title=None,
+                xaxis_title="Frequency",
+                height=320,
+            )
+            col.plotly_chart(fig_kw, use_container_width=True)
 
 
 def show_issues(df):
@@ -540,8 +585,14 @@ def show_insights(df):
             f"Needs work: '{worst}' ({outlet_pos.iloc[-1]*100:.1f}% positive)."
         )
 
-    for insight in insights:
-        st.markdown(f"- {insight}")
+    cards_html = "".join(
+        f'<div style="background:#f8f9fa;border-radius:10px;padding:12px 16px;'
+        f'margin-bottom:8px;border-left:4px solid #dee2e6;font-size:0.95rem;">'
+        f'{insight}</div>'
+        for insight in insights
+    )
+    st.markdown(cards_html, unsafe_allow_html=True)
+    st.markdown("")
 
     if "_rating" in df.columns:
         st.subheader("BERT Sentiment vs User Star Ratings")
