@@ -23,65 +23,35 @@ st.set_page_config(
 )
 
 # ── theme ──────────────────────────────────────────────────────────────────────
-# Read theme choice from session_state (set by sidebar toggle below)
-_dark = st.session_state.get("dark_mode", False)
+_dark = False
 
-if _dark:
-    T = dict(
-        bg           = "#0f172a",
-        card         = "#1e293b",
-        sidebar      = "#0d1424",
-        border       = "#334155",
-        text         = "#f1f5f9",
-        text_sub     = "#94a3b8",
-        section_text = "#475569",
-        input_bg     = "#1e293b",
-        # plotly
-        plot_bg      = "#1e293b",
-        paper_bg     = "#1e293b",
-        font_color   = "#cbd5e1",
-        grid_color   = "#334155",
-        hover_bg     = "#0f172a",
-        plotly_tpl   = "plotly_dark",
-        # insight card tints  (bg, border)
-        ins_red      = ("#3b0a0a", "#dc2626"),
-        ins_amber    = ("#2d1a00", "#f59e0b"),
-        ins_green    = ("#052e16", "#059669"),
-        ins_blue     = ("#0c1a3d", "#3b82f6"),
-        ins_purple   = ("#1e0a3d", "#7c3aed"),
-        ins_text     = "#f1f5f9",
-        # buttons
-        btn_bg       = "#f1f5f9",
-        btn_text     = "#0f172a",
-    )
-else:
-    T = dict(
-        bg           = "#f8fafc",
-        card         = "#ffffff",
-        sidebar      = "#f1f5f9",
-        border       = "#e2e8f0",
-        text         = "#0f172a",
-        text_sub     = "#64748b",
-        section_text = "#94a3b8",
-        input_bg     = "#ffffff",
-        # plotly
-        plot_bg      = "#ffffff",
-        paper_bg     = "#ffffff",
-        font_color   = "#374151",
-        grid_color   = "#f1f5f9",
-        hover_bg     = "#ffffff",
-        plotly_tpl   = "plotly_white",
-        # insight card tints
-        ins_red      = ("#fef2f2", "#dc2626"),
-        ins_amber    = ("#fffbeb", "#b45309"),
-        ins_green    = ("#f0fdf4", "#059669"),
-        ins_blue     = ("#eff6ff", "#1d4ed8"),
-        ins_purple   = ("#f5f3ff", "#6d28d9"),
-        ins_text     = "#1e293b",
-        # buttons
-        btn_bg       = "#0f172a",
-        btn_text     = "#ffffff",
-    )
+T = dict(
+    bg           = "#f8fafc",
+    card         = "#ffffff",
+    sidebar      = "#f1f5f9",
+    border       = "#e2e8f0",
+    text         = "#0f172a",
+    text_sub     = "#475569",
+    section_text = "#94a3b8",
+    input_bg     = "#ffffff",
+    # plotly
+    plot_bg      = "#ffffff",
+    paper_bg     = "#ffffff",
+    font_color   = "#1e293b",
+    grid_color   = "#f1f5f9",
+    hover_bg     = "#ffffff",
+    plotly_tpl   = "plotly_white",
+    # insight card tints
+    ins_red      = ("#fef2f2", "#dc2626"),
+    ins_amber    = ("#fffbeb", "#b45309"),
+    ins_green    = ("#f0fdf4", "#059669"),
+    ins_blue     = ("#eff6ff", "#1d4ed8"),
+    ins_purple   = ("#f5f3ff", "#6d28d9"),
+    ins_text     = "#1e293b",
+    # buttons
+    btn_bg       = "#0f172a",
+    btn_text     = "#ffffff",
+)
 
 SENTIMENT_COLORS = {
     "Positive": "#059669",
@@ -353,13 +323,6 @@ def run_analysis(df):
 # ── sidebar ────────────────────────────────────────────────────────────────────
 
 def sidebar():
-    # theme toggle at the very top
-    dark = st.sidebar.toggle("Dark mode", value=st.session_state.get("dark_mode", False))
-    if dark != st.session_state.get("dark_mode", False):
-        st.session_state.dark_mode = dark
-        st.rerun()
-
-    st.sidebar.markdown("---")
     st.sidebar.markdown("### Data Source")
     mode = st.sidebar.radio(
         "Dataset",
@@ -563,7 +526,7 @@ def tab_overview(df):
                 height=310, showlegend=False, margin=dict(t=16, b=12, l=8, r=8),
             ))
             with col:
-                st.markdown(f'<div style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:{T["section_text"]};margin-bottom:4px;">{sentiment}</div>', unsafe_allow_html=True)
+                st.markdown(f'<div style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:{T["text_sub"]};margin-bottom:4px;">{sentiment}</div>', unsafe_allow_html=True)
                 chart(fig_k)
 
     section("Model Confidence")
