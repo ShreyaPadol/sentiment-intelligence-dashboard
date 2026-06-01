@@ -11,29 +11,32 @@ from sentiment_engine import (
     predict_sentiment_batch,
     classify_issue,
     classify_issues_multi,
-    normalize_dataframe,
-)
+    normalize_dataframe)
 
 warnings.filterwarnings("ignore")
 
 st.set_page_config(
     page_title="Sentiment Intelligence Dashboard",
     layout="wide",
-    initial_sidebar_state="expanded",
-)
+    initial_sidebar_state="expanded")
 
+# Force light mode and lock all colours so dark-mode OS settings can't invert them.
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
-    html, body, [class*="css"] {
-        font-family: 'Inter', sans-serif;
+    /* force light background regardless of OS/browser dark-mode setting */
+    html, body, [data-testid="stAppViewContainer"], [data-testid="stMain"],
+    [data-testid="block-container"], .main, .stApp {
+        background-color: #f8fafc !important;
+        color: #1e293b !important;
+        font-family: 'Inter', sans-serif !important;
     }
 
-    /* ── page ── */
     .block-container {
         padding: 2rem 2.5rem 3rem 2.5rem;
         max-width: 1400px;
+        background-color: #f8fafc !important;
     }
 
     /* ── page title ── */
@@ -44,13 +47,14 @@ st.markdown("""
         letter-spacing: -0.025em;
         margin-bottom: 0.15rem !important;
     }
+    p, li, span, label { color: #1e293b !important; }
 
     /* ── metric cards ── */
     [data-testid="stMetric"] {
-        background: #ffffff;
+        background: #ffffff !important;
         border-radius: 10px;
         padding: 18px 22px;
-        border: 1px solid #e2e8f0;
+        border: 1px solid #e2e8f0 !important;
         box-shadow: 0 1px 4px rgba(0,0,0,0.06);
     }
     [data-testid="stMetricLabel"] {
@@ -74,14 +78,24 @@ st.markdown("""
 
     /* ── section headers ── */
     .section-title {
-        font-size: 0.7rem;
+        font-size: 0.68rem;
         font-weight: 700;
         text-transform: uppercase;
         letter-spacing: 0.1em;
-        color: #94a3b8;
+        color: #94a3b8 !important;
         margin: 2rem 0 0.8rem 0;
         padding-bottom: 8px;
         border-bottom: 1px solid #e2e8f0;
+    }
+
+    /* ── chart wrapper — white card with shadow ── */
+    .chart-card {
+        background: #ffffff;
+        border-radius: 10px;
+        border: 1px solid #e2e8f0;
+        padding: 4px;
+        box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+        margin-bottom: 1rem;
     }
 
     /* ── insight cards ── */
@@ -92,24 +106,25 @@ st.markdown("""
         border-left: 4px solid;
         font-size: 0.875rem;
         line-height: 1.65;
-        color: #1e293b;
+        color: #1e293b !important;
     }
+    .insight-card b { color: #0f172a !important; }
 
     /* ── tabs ── */
     .stTabs [data-baseweb="tab-list"] {
         gap: 0;
-        background: transparent;
-        border-bottom: 2px solid #e2e8f0;
+        background: transparent !important;
+        border-bottom: 2px solid #e2e8f0 !important;
     }
     .stTabs [data-baseweb="tab"] {
-        font-size: 0.75rem;
-        font-weight: 700;
+        font-size: 0.75rem !important;
+        font-weight: 700 !important;
         text-transform: uppercase;
         letter-spacing: 0.07em;
         padding: 10px 20px;
-        border-radius: 0;
-        color: #94a3b8;
-        background: transparent;
+        border-radius: 0 !important;
+        color: #94a3b8 !important;
+        background: transparent !important;
         border-bottom: 2px solid transparent;
         margin-bottom: -2px;
     }
@@ -118,19 +133,25 @@ st.markdown("""
         border-bottom-color: #0f172a !important;
         background: transparent !important;
     }
+    /* tab panel background */
+    .stTabs [data-baseweb="tab-panel"] {
+        background: transparent !important;
+    }
 
     /* ── sidebar ── */
     [data-testid="stSidebar"] {
-        background: #f8fafc;
-        border-right: 1px solid #e2e8f0;
+        background: #f1f5f9 !important;
+        border-right: 1px solid #e2e8f0 !important;
     }
     [data-testid="stSidebarContent"] { padding: 1.5rem 1rem; }
+    [data-testid="stSidebar"] * { color: #1e293b !important; }
 
     /* ── dataframe ── */
     [data-testid="stDataFrame"] {
         border-radius: 8px;
         overflow: hidden;
-        border: 1px solid #e2e8f0;
+        border: 1px solid #e2e8f0 !important;
+        background: #ffffff !important;
     }
 
     /* ── download button ── */
@@ -167,8 +188,7 @@ CHART_BASE = dict(
     title_font=dict(size=12, color="#0f172a", family="Inter, sans-serif"),
     plot_bgcolor="#ffffff",
     paper_bgcolor="#ffffff",
-    hoverlabel=dict(font_size=11, font_family="Inter, sans-serif", bgcolor="#ffffff"),
-)
+    hoverlabel=dict(font_size=11, font_family="Inter, sans-serif", bgcolor="#ffffff"))
 
 STOPWORDS = {
     "the","a","an","is","it","in","of","and","to","for","with","on","at","by",
@@ -181,14 +201,26 @@ STOPWORDS = {
 
 
 def chart_layout(**overrides):
-    """Merge CHART_BASE with per-chart overrides (margin, height, title_text, etc.)."""
+    """Merge CHART_BASE with per-chart overrides.
+    Never pass title_text here — use section() above the chart instead
+    so the Plotly title area doesn't collide with the legend.
+    """
     layout = dict(**CHART_BASE)
     layout.update(overrides)
+    # remove title if accidentally passed — prevents overlap with legend
+    layout.pop("title_text", None)
     return layout
 
 
 def section(label):
     st.markdown(f'<div class="section-title">{label}</div>', unsafe_allow_html=True)
+
+
+def chart(fig):
+    """Render a plotly figure inside a white card wrapper."""
+    st.markdown('<div class="chart-card">', unsafe_allow_html=True)
+    st.plotly_chart(fig, use_container_width=True)
+    st.markdown('</div>', unsafe_allow_html=True)
 
 
 def top_keywords(text, n=10):
@@ -227,8 +259,7 @@ def sidebar():
     mode = st.sidebar.radio(
         "Dataset",
         ["Pune Retail Outlet (default)", "Upload CSV / XLSX"],
-        label_visibility="collapsed",
-    )
+        label_visibility="collapsed")
 
     df_raw = None
     if mode == "Pune Retail Outlet (default)":
@@ -290,13 +321,11 @@ def main():
     sel_sentiments = st.sidebar.multiselect(
         "Sentiment",
         sorted(df["sentiment"].unique()),
-        default=sorted(df["sentiment"].unique()),
-    )
+        default=sorted(df["sentiment"].unique()))
     sel_issues = st.sidebar.multiselect(
         "Issue Category",
         sorted(df["issue_category"].unique()),
-        default=sorted(df["issue_category"].unique()),
-    )
+        default=sorted(df["issue_category"].unique()))
 
     if "_title" in df.columns:
         outlets = sorted(df["_title"].dropna().unique())
@@ -349,13 +378,12 @@ def tab_overview(df):
     neg   = (df["sentiment"] == "Negative").sum()
     neu   = (df["sentiment"] == "Neutral").sum()
     dominant = max(["Positive", "Neutral", "Negative"], key=lambda s: (df["sentiment"] == s).sum())
-    top_issue = df[df["sentiment"] == "Negative"]["issue_category"].value_counts()
+    top_issue = df[(df["sentiment"] == "Negative") & (df["issue_category"] != "Other")]["issue_category"].value_counts()
 
     st.markdown(
         f"Analysed **{total:,}** reviews. Sentiment is predominantly **{dominant}** — "
         f"{pos:,} positive, {neu:,} neutral, {neg:,} negative.",
-        help="Sentiment classified using nlptown/bert-base-multilingual-uncased-sentiment",
-    )
+        help="Sentiment classified using nlptown/bert-base-multilingual-uncased-sentiment")
 
     section("Sentiment Summary")
     c1, c2, c3, c4 = st.columns(4)
@@ -369,13 +397,12 @@ def tab_overview(df):
         bert_avg = df["bert_star"].mean()
         r1, r2, r3 = st.columns(3)
         r1.metric("Avg User Rating",    f"{avg_r:.2f} / 5.00")
-        r2.metric("Avg BERT Stars",     f"{bert_avg:.2f} / 5.00", f"{bert_avg - avg_r:+.2f} vs user rating")
+        r2.metric("Predicted Rating",     f"{bert_avg:.2f} / 5.00", f"{bert_avg - avg_r:+.2f} vs user rating")
         if not top_issue.empty:
             r3.metric(
                 "Top Negative Issue",
                 top_issue.index[0],
-                f"{top_issue.iloc[0]:,} negative reviews",
-            )
+                f"{top_issue.iloc[0]:,} negative reviews")
 
     section("Sentiment Distribution")
     col1, col2 = st.columns(2)
@@ -386,22 +413,18 @@ def tab_overview(df):
         fig = px.pie(
             counts, names="Sentiment", values="Count",
             color="Sentiment", color_discrete_map=SENTIMENT_COLORS,
-            hole=0.52,
-        )
+            hole=0.52)
         fig.update_traces(
             textposition="outside",
             textinfo="percent+label",
-            textfont=dict(size=11, color="#374151"),
-        )
+            textfont=dict(size=11, color="#374151"))
         fig.update_layout(
             **chart_layout(
                 height=340,
                 showlegend=False,
-                title_text="Overall Sentiment Split",
-                margin=dict(t=48, b=24, l=24, r=24),
-            )
+                margin=dict(t=48, b=24, l=24, r=24))
         )
-        st.plotly_chart(fig, use_container_width=True)
+        chart(fig)
 
     with col2:
         if "_rating" in df.columns:
@@ -414,30 +437,25 @@ def tab_overview(df):
                     "_rating": "Star Rating",
                     "count": "Reviews",
                     "sentiment": "Sentiment",
-                },
-            )
+                })
             fig2.update_layout(
                 **chart_layout(
                     height=340,
-                    title_text="BERT Sentiment by User Star Rating",
                     margin=dict(t=48, b=24, l=24, r=24),
                     legend=dict(
                         orientation="h",
                         yanchor="bottom", y=1.02,
                         xanchor="left", x=0,
-                        font=dict(size=11),
-                    ),
-                )
+                        font=dict(size=11)))
             )
-            st.plotly_chart(fig2, use_container_width=True)
+            chart(fig2)
 
     section("Top Keywords by Sentiment")
     kc1, kc2, kc3 = st.columns(3)
     for col, sentiment, bar_color in zip(
         [kc1, kc2, kc3],
         ["Positive", "Neutral", "Negative"],
-        ["#059669", "#b45309", "#dc2626"],
-    ):
+        ["#059669", "#b45309", "#dc2626"]):
         blob = " ".join(df[df["sentiment"] == sentiment]["_review_text"].dropna())
         kws  = top_keywords(blob, n=10)
         if kws:
@@ -445,15 +463,12 @@ def tab_overview(df):
             fig_k = px.bar(
                 kw_df, x="Count", y="Word", orientation="h",
                 color_discrete_sequence=[bar_color],
-                labels={"Count": "Frequency", "Word": ""},
-            )
+                labels={"Count": "Frequency", "Word": ""})
             fig_k.update_layout(
                 **chart_layout(
                     height=310,
-                    title_text=f"{sentiment} — Top Keywords",
                     showlegend=False,
-                    margin=dict(t=44, b=16, l=12, r=12),
-                )
+                    margin=dict(t=44, b=16, l=12, r=12))
             )
             col.plotly_chart(fig_k, use_container_width=True)
 
@@ -462,22 +477,18 @@ def tab_overview(df):
         df, x="confidence", color="sentiment",
         color_discrete_map=SENTIMENT_COLORS,
         nbins=35, barmode="overlay", opacity=0.72,
-        labels={"confidence": "Confidence Score", "sentiment": "Sentiment"},
-    )
+        labels={"confidence": "Confidence Score", "sentiment": "Sentiment"})
     fig3.update_layout(
         **chart_layout(
             height=260,
-            title_text="BERT Confidence Score Distribution",
             margin=dict(t=48, b=24, l=24, r=24),
             legend=dict(
                 orientation="h",
                 yanchor="bottom", y=1.02,
                 xanchor="left", x=0,
-                font=dict(size=11),
-            ),
-        )
+                font=dict(size=11)))
     )
-    st.plotly_chart(fig3, use_container_width=True)
+    chart(fig3)
 
 
 # ── Tab 2: Issue Analysis ─────────────────────────────────────────────────────
@@ -493,23 +504,19 @@ def tab_issues(df):
             "issue_category": "Issue Category",
             "count": "Reviews",
             "sentiment": "Sentiment",
-        },
-    )
+        })
     fig.update_xaxes(tickangle=35)
     fig.update_layout(
         **chart_layout(
             height=380,
-            title_text="Reviews by Issue Category and Sentiment",
             margin=dict(t=48, b=80, l=24, r=24),
             legend=dict(
                 orientation="h",
                 yanchor="bottom", y=1.02,
                 xanchor="left", x=0,
-                font=dict(size=11),
-            ),
-        )
+                font=dict(size=11)))
     )
-    st.plotly_chart(fig, use_container_width=True)
+    chart(fig)
 
     col1, col2 = st.columns(2)
 
@@ -520,21 +527,18 @@ def tab_issues(df):
         fig2 = px.pie(
             ic, names="Category", values="Count",
             hole=0.42,
-            color_discrete_sequence=px.colors.qualitative.Safe,
-        )
+            color_discrete_sequence=px.colors.qualitative.Safe)
         fig2.update_traces(
             textposition="outside",
             textinfo="percent+label",
-            textfont=dict(size=10, color="#374151"),
-        )
+            textfont=dict(size=10, color="#374151"))
         fig2.update_layout(
             **chart_layout(
                 height=400,
                 showlegend=False,
-                margin=dict(t=48, b=24, l=24, r=24),
-            )
+                margin=dict(t=48, b=24, l=24, r=24))
         )
-        st.plotly_chart(fig2, use_container_width=True)
+        chart(fig2)
 
     with col2:
         section("Negative Rate per Category")
@@ -547,40 +551,34 @@ def tab_issues(df):
         fig3 = px.bar(
             neg_rate, x="pct", y="issue_category", orientation="h",
             color="pct", color_continuous_scale="Reds",
-            labels={"pct": "Negative Reviews (%)", "issue_category": ""},
-        )
+            labels={"pct": "Negative Reviews (%)", "issue_category": ""})
         fig3.update_layout(
             **chart_layout(
                 height=400,
                 showlegend=False,
-                title_text="Proportion of Negative Reviews per Category",
                 margin=dict(t=48, b=24, l=24, r=24),
-                coloraxis_showscale=False,
-            )
+                coloraxis_showscale=False)
         )
-        st.plotly_chart(fig3, use_container_width=True)
+        chart(fig3)
 
     if "_title" in df.columns and df["_title"].nunique() > 1:
         section("Outlet vs Issue Category — Review Count")
         pivot = df.groupby(["_title", "issue_category"]).size().unstack(fill_value=0)
         fig4 = px.imshow(
             pivot, aspect="auto", color_continuous_scale="Blues",
-            labels={"x": "Issue Category", "y": "Outlet", "color": "Reviews"},
-        )
+            labels={"x": "Issue Category", "y": "Outlet", "color": "Reviews"})
         fig4.update_layout(
             **chart_layout(
                 height=420,
-                margin=dict(t=48, b=24, l=180, r=24),
-            )
+                margin=dict(t=48, b=24, l=180, r=24))
         )
-        st.plotly_chart(fig4, use_container_width=True)
+        chart(fig4)
 
     section("Browse Negative Reviews")
     selected = st.selectbox(
         "Issue category",
         sorted(df["issue_category"].unique()),
-        label_visibility="collapsed",
-    )
+        label_visibility="collapsed")
     neg_samples = df[
         (df["issue_category"] == selected) & (df["sentiment"] == "Negative")
     ][["_review_text", "_rating", "confidence"]].head(10)
@@ -595,8 +593,7 @@ def tab_issues(df):
                 "confidence":   "BERT Confidence",
             }),
             use_container_width=True,
-            height=300,
-        )
+            height=300)
 
 
 # ── Tab 3: Time-Series ────────────────────────────────────────────────────────
@@ -619,22 +616,18 @@ def tab_timeseries(df):
     fig = px.line(
         sent_trend, x=period_col, y="count",
         color="sentiment", color_discrete_map=SENTIMENT_COLORS, markers=True,
-        labels={period_col: "Period", "count": "Reviews", "sentiment": "Sentiment"},
-    )
+        labels={period_col: "Period", "count": "Reviews", "sentiment": "Sentiment"})
     fig.update_layout(
         **chart_layout(
             height=340,
-            title_text=f"Review Volume by Sentiment ({granularity})",
             margin=dict(t=48, b=24, l=24, r=24),
             legend=dict(
                 orientation="h",
                 yanchor="bottom", y=1.02,
                 xanchor="left", x=0,
-                font=dict(size=11),
-            ),
-        )
+                font=dict(size=11)))
     )
-    st.plotly_chart(fig, use_container_width=True)
+    chart(fig)
 
     section("Sentiment Share Over Time")
     pct_data = (
@@ -647,22 +640,18 @@ def tab_timeseries(df):
     fig2 = px.area(
         pct_data, x=period_col, y="Percent",
         color="Sentiment", color_discrete_map=SENTIMENT_COLORS,
-        labels={period_col: "Period", "Percent": "Share (%)"},
-    )
+        labels={period_col: "Period", "Percent": "Share (%)"})
     fig2.update_layout(
         **chart_layout(
             height=300,
-            title_text=f"Sentiment Share % ({granularity})",
             margin=dict(t=48, b=24, l=24, r=24),
             legend=dict(
                 orientation="h",
                 yanchor="bottom", y=1.02,
                 xanchor="left", x=0,
-                font=dict(size=11),
-            ),
-        )
+                font=dict(size=11)))
     )
-    st.plotly_chart(fig2, use_container_width=True)
+    chart(fig2)
 
     if "_rating" in df_t.columns:
         section("Average Rating and Review Volume")
@@ -673,17 +662,14 @@ def tab_timeseries(df):
             x=rt[period_col], y=rt["avg_rating"],
             mode="lines+markers", name="Avg Rating",
             line=dict(color="#2563eb", width=2),
-            marker=dict(size=6),
-        ))
+            marker=dict(size=6)))
         fig3.add_trace(go.Bar(
             x=rt[period_col], y=rt["review_count"],
             name="Review Count", opacity=0.18,
-            marker_color="#94a3b8", yaxis="y2",
-        ))
+            marker_color="#94a3b8", yaxis="y2"))
         fig3.update_layout(
             **chart_layout(
                 height=320,
-                title_text=f"Avg Rating and Review Volume ({granularity})",
                 margin=dict(t=48, b=24, l=24, r=48),
                 yaxis=dict(title="Avg Rating", range=[0.8, 5.2], gridcolor="#f1f5f9"),
                 yaxis2=dict(title="Review Count", overlaying="y", side="right"),
@@ -691,11 +677,9 @@ def tab_timeseries(df):
                     orientation="h",
                     yanchor="bottom", y=1.02,
                     xanchor="left", x=0,
-                    font=dict(size=11),
-                ),
-            )
+                    font=dict(size=11)))
         )
-        st.plotly_chart(fig3, use_container_width=True)
+        chart(fig3)
 
     section("Issue Category Trends")
     top_issues = df_t["issue_category"].value_counts().nlargest(6).index.tolist()
@@ -708,17 +692,14 @@ def tab_timeseries(df):
     fig4 = px.line(
         issue_trend, x=period_col, y="count",
         color="issue_category", markers=True,
-        labels={period_col: "Period", "count": "Reviews", "issue_category": "Issue"},
-    )
+        labels={period_col: "Period", "count": "Reviews", "issue_category": "Issue"})
     fig4.update_layout(
         **chart_layout(
             height=340,
-            title_text=f"Top 6 Issue Categories ({granularity})",
             margin=dict(t=48, b=24, l=24, r=24),
-            legend=dict(font=dict(size=10)),
-        )
+            legend=dict(font=dict(size=10)))
     )
-    st.plotly_chart(fig4, use_container_width=True)
+    chart(fig4)
 
     neg_by_period = (
         df_t[df_t["sentiment"] == "Negative"]
@@ -739,17 +720,14 @@ def tab_timeseries(df):
                 neg_by_period, x=period_col, y="neg_count",
                 color="spike",
                 color_discrete_map={True: "#dc2626", False: "#cbd5e1"},
-                labels={period_col: "Period", "neg_count": "Negative Reviews"},
-            )
+                labels={period_col: "Period", "neg_count": "Negative Reviews"})
             fig5.update_layout(
                 **chart_layout(
                     height=260,
                     showlegend=False,
-                    title_text="Negative Review Volume — Spikes Highlighted",
-                    margin=dict(t=48, b=24, l=24, r=24),
-                )
+                    margin=dict(t=48, b=24, l=24, r=24))
             )
-            st.plotly_chart(fig5, use_container_width=True)
+            chart(fig5)
 
 
 # ── Tab 4: Deep Insights ──────────────────────────────────────────────────────
@@ -824,8 +802,7 @@ def tab_insights(df):
         st.markdown(
             f'<div class="insight-card" style="border-left-color:{border};background:{bg};">'
             f'{text}</div>',
-            unsafe_allow_html=True,
-        )
+            unsafe_allow_html=True)
 
     st.markdown("<br>", unsafe_allow_html=True)
 
@@ -836,15 +813,13 @@ def tab_insights(df):
             cross = pd.crosstab(df["_rating"].round(0).astype(int), df["sentiment"])
             fig = px.imshow(
                 cross, color_continuous_scale="Blues", aspect="auto",
-                labels={"x": "BERT Sentiment", "y": "User Rating", "color": "Count"},
-            )
+                labels={"x": "BERT Sentiment", "y": "User Rating", "color": "Count"})
             fig.update_layout(
                 **chart_layout(
                     height=320,
-                    margin=dict(t=48, b=24, l=60, r=24),
-                )
+                    margin=dict(t=48, b=24, l=60, r=24))
             )
-            st.plotly_chart(fig, use_container_width=True)
+            chart(fig)
             st.caption(
                 "High user ratings with negative BERT sentiment indicate courtesy ratings "
                 "that mask genuine dissatisfaction."
@@ -861,22 +836,18 @@ def tab_insights(df):
                     "_rating": "Star Rating",
                     "pct": "Share (%)",
                     "sentiment": "Sentiment",
-                },
-            )
+                })
             fig2.update_layout(
                 **chart_layout(
                     height=320,
-                    title_text="Sentiment Mix per Rating Band",
                     margin=dict(t=48, b=24, l=24, r=24),
                     legend=dict(
                         orientation="h",
                         yanchor="bottom", y=1.02,
                         xanchor="left", x=0,
-                        font=dict(size=11),
-                    ),
-                )
+                        font=dict(size=11)))
             )
-            st.plotly_chart(fig2, use_container_width=True)
+            chart(fig2)
 
     if "_title" in df.columns and df["_title"].nunique() > 1:
         section("Outlet Scorecard")
@@ -886,12 +857,10 @@ def tab_insights(df):
                 Total    =("sentiment", "count"),
                 Positive =("sentiment", lambda x: (x == "Positive").sum()),
                 Negative =("sentiment", lambda x: (x == "Negative").sum()),
-                Avg_Conf =("confidence", "mean"),
-            )
+                Avg_Conf =("confidence", "mean"))
             .assign(
                 Pos_Pct=lambda x: x["Positive"] / x["Total"] * 100,
-                Neg_Pct=lambda x: x["Negative"] / x["Total"] * 100,
-            )
+                Neg_Pct=lambda x: x["Negative"] / x["Total"] * 100)
             .sort_values("Neg_Pct", ascending=False)
             .reset_index()
         )
@@ -908,8 +877,7 @@ def tab_insights(df):
                     "Negative %":    "{:.1f}",
                     "Avg Confidence": "{:.2f}",
                 }),
-            use_container_width=True,
-        )
+            use_container_width=True)
 
     section("Recommended Actions")
     neg_rates = (
@@ -960,8 +928,7 @@ def _action_for(issue):
     }
     return lookup.get(
         issue,
-        "Investigate the root cause and implement a targeted operational improvement.",
-    )
+        "Investigate the root cause and implement a targeted operational improvement.")
 
 
 # ── Tab 5: Data Explorer ──────────────────────────────────────────────────────
@@ -979,7 +946,7 @@ def tab_data(df, df_raw):
         "_review_text":   "Review Text",
         "_rating":        "User Rating",
         "sentiment":      "Sentiment",
-        "bert_star":      "BERT Stars",
+        "bert_star":      "Predicted Stars",
         "confidence":     "Confidence",
         "issue_category": "Issue Category",
         "issue_tags":     "Issue Tags",
@@ -988,16 +955,14 @@ def tab_data(df, df_raw):
     st.dataframe(
         df[display_cols].rename(columns=col_rename),
         use_container_width=True,
-        height=480,
-    )
+        height=480)
 
     csv_bytes = df[display_cols].rename(columns=col_rename).to_csv(index=False).encode()
     st.download_button(
         "Download Results as CSV",
         data=csv_bytes,
         file_name="sentiment_results.csv",
-        mime="text/csv",
-    )
+        mime="text/csv")
 
     st.markdown("---")
     section("Raw Data — First 50 Rows")
