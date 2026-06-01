@@ -168,11 +168,11 @@ def main():
         return
 
     tab1, tab2, tab3, tab4, tab5 = st.tabs([
-        "📈 Overview",
-        "🔖 Issue Analysis",
-        "📅 Time-Series",
-        "🔎 Deep Insights",
-        "📋 Data Explorer",
+        "Overview",
+        "Issue Analysis",
+        "Time-Series",
+        "Deep Insights",
+        "Data Explorer",
     ])
 
     with tab1:
@@ -695,7 +695,7 @@ def show_data(df, df_raw):
 
     csv_bytes = df[display_cols].rename(columns=rename).to_csv(index=False).encode()
     st.download_button(
-        "⬇️ Download Results CSV",
+        "Download Results CSV",
         data=csv_bytes,
         file_name="sentiment_results.csv",
         mime="text/csv",
