@@ -301,12 +301,20 @@ st.markdown(f"""
 
 def chart_layout(**overrides):
     """Return a Plotly layout dict with theme colours applied."""
+    axis_style = dict(
+        tickfont=dict(color=T["font_color"], size=11),
+        title_font=dict(color=T["font_color"], size=11),
+        linecolor=T["border"],
+        gridcolor=T["grid_color"],
+    )
     base = dict(
         template      = T["plotly_tpl"],
         font          = dict(family="Inter, sans-serif", size=11, color=T["font_color"]),
         plot_bgcolor  = T["plot_bg"],
         paper_bgcolor = T["paper_bg"],
         hoverlabel    = dict(font_size=11, font_family="Inter, sans-serif", bgcolor=T["hover_bg"]),
+        xaxis         = axis_style,
+        yaxis         = axis_style,
     )
     base.update(overrides)
     base.pop("title_text", None)
@@ -567,8 +575,6 @@ def tab_overview(df):
             )
             fig_k.update_layout(**chart_layout(
                 height=310, showlegend=False, margin=dict(t=16, b=12, l=8, r=8),
-                xaxis=dict(tickfont=dict(color=T["font_color"]), title_font=dict(color=T["font_color"])),
-                yaxis=dict(tickfont=dict(color=T["font_color"])),
             ))
             with col:
                 st.markdown(f'<div style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:{T["text_sub"]};margin-bottom:4px;">{sentiment}</div>', unsafe_allow_html=True)
