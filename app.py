@@ -12,6 +12,7 @@ from sentiment_engine import (
     classify_issue,
     classify_issues_multi,
     normalize_dataframe,
+    normalize_station_dataframe,
 )
 
 warnings.filterwarnings("ignore")
@@ -523,6 +524,18 @@ def load_default_pune():
     return pd.read_excel("Pune_Retail_outlet (1).xlsx")
 
 
+@st.cache_data(show_spinner=False)
+def load_default_mumbai():
+    return pd.read_excel("mumbai_petrol_pumps.xlsx")
+
+
+def is_station_level(df):
+    """Return True when the dataframe is station-level (no review text column)."""
+    col_lower = {c.lower().strip() for c in df.columns}
+    review_indicators = {"review_text_final", "text", "review", "review_text", "comment", "body"}
+    return not bool(review_indicators & col_lower)
+
+
 def run_analysis(df):
     texts = df["_review_text"].fillna("").tolist()
     with st.spinner("Running sentiment analysis — this takes a moment on first load."):
@@ -549,7 +562,7 @@ def sidebar():
     st.sidebar.markdown("### Data Source")
     mode = st.sidebar.radio(
         "Dataset",
-        ["Pune Retail Outlet (default)", "Upload CSV / XLSX"],
+        ["Pune Retail Outlet (default)", "Mumbai Petrol Pumps (163 stations)", "Upload CSV / XLSX"],
         label_visibility="collapsed",
     )
 
@@ -557,6 +570,10 @@ def sidebar():
     if mode == "Pune Retail Outlet (default)":
         df_raw = load_default_pune()
         st.sidebar.success(f"{len(df_raw):,} reviews loaded")
+    elif mode == "Mumbai Petrol Pumps (163 stations)":
+        df_raw = load_default_mumbai()
+        st.sidebar.success(f"{len(df_raw):,} stations loaded")
+        st.sidebar.info("Station-level dataset — sentiment derived from aggregate ratings.")
     else:
         uploaded = st.sidebar.file_uploader(
             "Upload file", type=["csv", "xlsx", "xls"], label_visibility="collapsed"
@@ -590,6 +607,10 @@ def main():
     df_raw = sidebar()
     if df_raw is None:
         st.info("Select or upload a dataset from the sidebar to begin.")
+        return
+
+    if is_station_level(df_raw):
+        main_station(df_raw)
         return
 
     df, _ = normalize_dataframe(df_raw.copy())
@@ -1153,6 +1174,516 @@ def tab_data(df, df_raw):
 
     st.markdown("---")
     section("Raw Data — First 50 Rows")
+    st.dataframe(df_raw.head(50), use_container_width=True)
+
+
+# ── Station-level dashboard (Mumbai petrol pumps) ─────────────────────────────
+
+def main_station(df_raw):
+    st.markdown(
+        '<div class="page-header">'
+        '<div class="page-header-icon">🗺️</div>'
+        '<div>'
+        '<div class="page-header-title">Mumbai Petrol Pump Intelligence</div>'
+        '<div class="page-header-sub">'
+        '163 stations &nbsp;·&nbsp; Station-level ratings &nbsp;·&nbsp; '
+        'Geographic distribution &nbsp;·&nbsp; CNG coverage &nbsp;·&nbsp; Zone analysis'
+        '</div>'
+        '</div>'
+        '</div>',
+        unsafe_allow_html=True,
+    )
+
+    df = normalize_station_dataframe(df_raw.copy())
+    df_valid = df[df["sentiment"] != "Unknown"].copy()
+
+    # ── sidebar filters ──
+    st.sidebar.markdown("---")
+    st.sidebar.markdown("### Filters")
+
+    sel_sentiments = st.sidebar.multiselect(
+        "Sentiment (by avg rating)",
+        sorted(df_valid["sentiment"].unique()),
+        default=sorted(df_valid["sentiment"].unique()),
+    )
+    if "zone" in df_valid.columns:
+        sel_zones = st.sidebar.multiselect(
+            "Zone", sorted(df_valid["zone"].unique()),
+            default=sorted(df_valid["zone"].unique()),
+        )
+        df_valid = df_valid[df_valid["zone"].isin(sel_zones)]
+    if "fuel_type" in df_valid.columns:
+        sel_ft = st.sidebar.multiselect(
+            "Fuel Type", sorted(df_valid["fuel_type"].unique()),
+            default=sorted(df_valid["fuel_type"].unique()),
+        )
+        df_valid = df_valid[df_valid["fuel_type"].isin(sel_ft)]
+
+    df_valid = df_valid[df_valid["sentiment"].isin(sel_sentiments)]
+
+    if df_valid.empty:
+        st.warning("No stations match the current filters.")
+        return
+
+    tab_labels = ["Overview", "Geographic Map", "Zone Analysis", "Station Scorecard", "Insights & Actions", "Data Explorer"]
+    tabs = st.tabs(tab_labels)
+    with tabs[0]: tab_station_overview(df_valid)
+    with tabs[1]: tab_geo_map(df_valid)
+    with tabs[2]: tab_zone_analysis(df_valid)
+    with tabs[3]: tab_station_scorecard(df_valid)
+    with tabs[4]: tab_station_insights(df_valid)
+    with tabs[5]: tab_station_data(df_valid, df_raw)
+
+
+def tab_station_overview(df):
+    total       = len(df)
+    pos         = (df["sentiment"] == "Positive").sum()
+    neu         = (df["sentiment"] == "Neutral").sum()
+    neg         = (df["sentiment"] == "Negative").sum()
+    avg_rating  = df["_rating"].mean() if "_rating" in df.columns else None
+    cng_count   = (df.get("fuel_type", pd.Series()) == "CNG").sum()
+    top_zone    = df["zone"].value_counts().index[0] if "zone" in df.columns else "—"
+
+    st.markdown(
+        f"Analysed **{total:,} Mumbai petrol pump stations**. "
+        f"{pos} stations rated Positive (≥ 3.6★), {neu} Neutral (2.6–3.5★), {neg} Negative (≤ 2.5★). "
+        f"CNG stations: **{int(cng_count)}** out of {total}."
+    )
+
+    section("Station Health Summary")
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Total Stations",   f"{total:,}")
+    c2.metric("Positive (≥ 3.6★)", f"{pos:,}",  f"{pos/total*100:.1f}% of total")
+    c3.metric("Neutral (2.6–3.5★)", f"{neu:,}",  f"{neu/total*100:.1f}% of total")
+    c4.metric("Negative (≤ 2.5★)", f"{neg:,}",  f"{neg/total*100:.1f}% of total")
+
+    r1, r2, r3 = st.columns(3)
+    if avg_rating is not None:
+        r1.metric("Avg Station Rating",  f"{avg_rating:.2f} / 5.00")
+    if "_review_count" in df.columns:
+        total_reviews = int(df["_review_count"].sum())
+        avg_reviews   = df["_review_count"].median()
+        r2.metric("Total Reviews Covered", f"{total_reviews:,}")
+        r3.metric("Median Reviews / Station", f"{avg_reviews:,.0f}")
+
+    section("Rating Distribution")
+    col1, col2 = st.columns(2)
+
+    with col1:
+        counts = df["sentiment"].value_counts().reset_index()
+        counts.columns = ["Sentiment", "Stations"]
+        fig = px.pie(
+            counts, names="Sentiment", values="Stations",
+            color="Sentiment", color_discrete_map=SENTIMENT_COLORS, hole=0.52,
+        )
+        fig.update_traces(textposition="outside", textinfo="percent+label",
+                          textfont=dict(size=11, color=T["font_color"]))
+        fig.update_layout(**chart_layout(height=340, showlegend=False,
+                                         margin=dict(t=20, b=20, l=20, r=20)))
+        chart(fig)
+
+    with col2:
+        if "_rating" in df.columns:
+            fig2 = px.histogram(
+                df, x="_rating", nbins=20,
+                color="sentiment", color_discrete_map=SENTIMENT_COLORS,
+                barmode="overlay", opacity=0.75,
+                labels={"_rating": "Avg Station Rating (1–5)", "sentiment": "Sentiment"},
+            )
+            fig2.update_layout(**chart_layout(
+                height=340, margin=dict(t=48, b=20, l=20, r=20),
+                legend=dict(orientation="h", yanchor="bottom", y=1.02,
+                            xanchor="left", x=0, font=dict(size=11)),
+            ))
+            chart(fig2)
+
+    section("Fuel Type Breakdown")
+    if "fuel_type" in df.columns:
+        ft_sent = df.groupby(["fuel_type", "sentiment"]).size().reset_index(name="count")
+        fig3 = px.bar(
+            ft_sent, x="fuel_type", y="count",
+            color="sentiment", color_discrete_map=SENTIMENT_COLORS,
+            barmode="group",
+            labels={"fuel_type": "Fuel Type", "count": "Stations", "sentiment": "Sentiment"},
+        )
+        fig3.update_layout(**chart_layout(
+            height=320, margin=dict(t=48, b=20, l=20, r=20),
+            legend=dict(orientation="h", yanchor="bottom", y=1.02,
+                        xanchor="left", x=0, font=dict(size=11)),
+        ))
+        chart(fig3)
+
+    if "_review_count" in df.columns:
+        section("Review Volume Distribution (log scale)")
+        fig4 = px.histogram(
+            df, x="_review_count", nbins=30, log_x=True,
+            color="sentiment", color_discrete_map=SENTIMENT_COLORS,
+            barmode="overlay", opacity=0.72,
+            labels={"_review_count": "Total Google Reviews (log scale)", "sentiment": "Sentiment"},
+        )
+        fig4.update_layout(**chart_layout(
+            height=260, margin=dict(t=48, b=20, l=20, r=20),
+            legend=dict(orientation="h", yanchor="bottom", y=1.02,
+                        xanchor="left", x=0, font=dict(size=11)),
+        ))
+        chart(fig4)
+
+
+@st.cache_data(show_spinner=False)
+def _load_mumbai_boundary():
+    import json, os
+    path = os.path.join(os.path.dirname(__file__), "mumbai_boundary.geojson")
+    if not os.path.exists(path):
+        return None
+    with open(path) as f:
+        return json.load(f)
+
+
+def tab_geo_map(df):
+    if "_lat" not in df.columns or "_lng" not in df.columns:
+        st.info("No latitude / longitude columns found in this dataset.")
+        return
+
+    df_map = df[df["_lat"].notna() & df["_lng"].notna()].copy()
+    if df_map.empty:
+        st.info("No stations with valid coordinates found.")
+        return
+
+    section("Mumbai Petrol Pump Map")
+    st.caption(
+        f"Geospatial distribution of {len(df_map):,} petrol pump stations across Greater Mumbai. "
+        "Marker colour indicates sentiment classification derived from aggregate customer ratings. "
+        "Marker size is proportional to total review volume — larger markers represent stations "
+        "with a higher number of verified ratings, providing greater statistical confidence. "
+        "The grey boundary delineates the Greater Mumbai Municipal Corporation (BMC) jurisdiction."
+    )
+
+    hover_cols = ["_title", "_rating", "_review_count", "zone", "fuel_type"]
+    hover_cols = [c for c in hover_cols if c in df_map.columns]
+
+    if "_review_count" in df_map.columns:
+        df_map["_marker_size"] = np.log1p(df_map["_review_count"]) * 2 + 5
+        size_col = "_marker_size"
+    else:
+        size_col = None
+
+    fig = px.scatter_mapbox(
+        df_map,
+        lat="_lat", lon="_lng",
+        color="sentiment",
+        color_discrete_map=SENTIMENT_COLORS,
+        size=size_col,
+        size_max=22,
+        hover_name="_title" if "_title" in df_map.columns else None,
+        hover_data={c: True for c in hover_cols if c not in ["_title", "_marker_size"]},
+        zoom=10.5,
+        center={"lat": df_map["_lat"].mean(), "lon": df_map["_lng"].mean()},
+        height=580,
+    )
+
+    # Overlay the Mumbai municipal boundary from the GeoJSON
+    boundary_gj = _load_mumbai_boundary()
+    mapbox_layers = []
+    if boundary_gj:
+        mapbox_layers.append({
+            "sourcetype": "geojson",
+            "source":     boundary_gj,
+            "type":       "line",
+            "color":      "#64748b",
+            "line":       {"width": 1.5},
+            "opacity":    0.7,
+        })
+
+    fig.update_layout(
+        mapbox_style="open-street-map",
+        mapbox_layers=mapbox_layers,
+        **chart_layout(
+            height=580,
+            margin=dict(t=10, b=10, l=10, r=10),
+            legend=dict(orientation="h", yanchor="bottom", y=1.01,
+                        xanchor="left", x=0, font=dict(size=11)),
+        )
+    )
+    st.plotly_chart(fig, use_container_width=True)
+
+    if "zone" in df_map.columns:
+        section("Station Count by Zone")
+        zone_counts = df_map["zone"].value_counts().reset_index()
+        zone_counts.columns = ["Zone", "Stations"]
+        fig2 = px.bar(
+            zone_counts.sort_values("Stations"), x="Stations", y="Zone",
+            orientation="h", color_discrete_sequence=["#3b82f6"],
+            labels={"Stations": "Number of Petrol Pumps", "Zone": ""},
+        )
+        fig2.update_layout(**chart_layout(
+            height=300, showlegend=False, margin=dict(t=10, b=20, l=20, r=20),
+        ))
+        chart(fig2)
+
+
+def tab_zone_analysis(df):
+    if "zone" not in df.columns:
+        st.info("Zone data not available.")
+        return
+
+    section("Rating & Sentiment by Zone")
+    zone_stats = (
+        df.groupby("zone")
+        .agg(
+            Stations  =("_rating", "count"),
+            Avg_Rating=("_rating", "mean"),
+            Pos       =("sentiment", lambda x: (x == "Positive").sum()),
+            Neg       =("sentiment", lambda x: (x == "Negative").sum()),
+        )
+        .assign(
+            Pos_Pct=lambda x: x["Pos"] / x["Stations"] * 100,
+            Neg_Pct=lambda x: x["Neg"] / x["Stations"] * 100,
+        )
+        .sort_values("Avg_Rating", ascending=False)
+        .reset_index()
+    )
+
+    col1, col2 = st.columns(2)
+    with col1:
+        fig = px.bar(
+            zone_stats.sort_values("Avg_Rating"), x="Avg_Rating", y="zone",
+            orientation="h", color="Avg_Rating",
+            color_continuous_scale="RdYlGn",
+            range_color=[2.5, 4.5],
+            labels={"Avg_Rating": "Avg Station Rating", "zone": ""},
+        )
+        fig.update_layout(**chart_layout(
+            height=340, showlegend=False, coloraxis_showscale=False,
+            margin=dict(t=10, b=20, l=20, r=20),
+        ))
+        chart(fig)
+
+    with col2:
+        zone_sent = df.groupby(["zone", "sentiment"]).size().reset_index(name="count")
+        fig2 = px.bar(
+            zone_sent, x="zone", y="count",
+            color="sentiment", color_discrete_map=SENTIMENT_COLORS,
+            barmode="stack",
+            labels={"zone": "Zone", "count": "Stations", "sentiment": "Sentiment"},
+        )
+        fig2.update_xaxes(tickangle=20)
+        fig2.update_layout(**chart_layout(
+            height=340, margin=dict(t=48, b=60, l=20, r=20),
+            legend=dict(orientation="h", yanchor="bottom", y=1.02,
+                        xanchor="left", x=0, font=dict(size=11)),
+        ))
+        chart(fig2)
+
+    if "fuel_type" in df.columns:
+        section("CNG Station Coverage by Zone")
+        cng_zone = df.groupby(["zone", "fuel_type"]).size().reset_index(name="count")
+        fig3 = px.bar(
+            cng_zone, x="zone", y="count",
+            color="fuel_type",
+            color_discrete_sequence=["#3b82f6", "#10b981"],
+            barmode="group",
+            labels={"zone": "Zone", "count": "Stations", "fuel_type": "Type"},
+        )
+        fig3.update_xaxes(tickangle=20)
+        fig3.update_layout(**chart_layout(
+            height=320, margin=dict(t=48, b=60, l=20, r=20),
+            legend=dict(orientation="h", yanchor="bottom", y=1.02,
+                        xanchor="left", x=0, font=dict(size=11)),
+        ))
+        chart(fig3)
+
+    section("Zone Summary Table")
+    display_zone = zone_stats.copy()
+    display_zone["Avg_Rating"]  = display_zone["Avg_Rating"].round(2)
+    display_zone["Pos_Pct"]     = display_zone["Pos_Pct"].round(1)
+    display_zone["Neg_Pct"]     = display_zone["Neg_Pct"].round(1)
+    display_zone.columns = ["Zone", "Stations", "Avg Rating", "Positive", "Negative", "Positive %", "Negative %"]
+    st.dataframe(
+        display_zone.style
+            .background_gradient(subset=["Avg Rating"], cmap="RdYlGn")
+            .background_gradient(subset=["Negative %"], cmap="Reds")
+            .format({"Avg Rating": "{:.2f}", "Positive %": "{:.1f}", "Negative %": "{:.1f}"}),
+        use_container_width=True,
+    )
+
+
+def tab_station_scorecard(df):
+    section("All Stations — Ranked by Rating")
+    st.caption(
+        "Sorted by average Google rating (highest first). "
+        "Use Total Reviews to judge how much to trust each rating — "
+        "stations with fewer than 50 reviews are flagged separately in the Insights tab."
+    )
+
+    cols = ["_title", "_rating", "_review_count", "sentiment", "zone", "fuel_type", "_address"]
+    cols = [c for c in cols if c in df.columns]
+    sc   = df[cols].copy().sort_values("_rating", ascending=False)
+
+    rename = {
+        "_title": "Station Name", "_rating": "Avg Rating",
+        "_review_count": "Total Reviews",
+        "sentiment": "Sentiment", "zone": "Zone",
+        "fuel_type": "Fuel Type", "_address": "Address",
+    }
+    sc = sc.rename(columns=rename)
+
+    style_cols = {}
+    if "Avg Rating"    in sc.columns: style_cols["Avg Rating"]    = "{:.2f}"
+    if "Total Reviews" in sc.columns: style_cols["Total Reviews"] = "{:,.0f}"
+
+    styled = sc.style.format(style_cols)
+    if "Avg Rating" in sc.columns:
+        styled = styled.background_gradient(subset=["Avg Rating"], cmap="RdYlGn")
+
+    st.dataframe(styled, use_container_width=True, height=520)
+
+    section("Bottom 15 Stations — Priority Attention")
+    bottom = sc.tail(15).sort_values("Avg Rating")
+    st.dataframe(
+        bottom.style
+            .background_gradient(subset=["Avg Rating"], cmap="Reds")
+            .format(style_cols),
+        use_container_width=True,
+    )
+
+    csv_bytes = sc.to_csv(index=False).encode()
+    st.download_button("Download Scorecard as CSV", data=csv_bytes,
+                       file_name="mumbai_station_scorecard.csv", mime="text/csv")
+
+
+def tab_station_insights(df):
+    total       = len(df)
+    neg_count   = (df["sentiment"] == "Negative").sum()
+    neg_pct     = neg_count / total * 100 if total else 0
+    avg_rating  = df["_rating"].mean() if "_rating" in df.columns else None
+
+    section("Mumbai Petrol Pump — Automated Insights")
+
+    if neg_pct > 30:
+        insight_card(T["ins_red"],
+            f"<b>High Negativity Across City</b> — {neg_pct:.1f}% of Mumbai stations "
+            f"({neg_count} of {total}) have an average rating ≤ 2.5★, indicating widespread "
+            "customer dissatisfaction that warrants a city-wide operational review.")
+    elif neg_pct > 15:
+        insight_card(T["ins_amber"],
+            f"<b>Moderate Negativity</b> — {neg_pct:.1f}% of stations have low aggregate ratings. "
+            "Targeted improvement in identified zones can meaningfully lift city-wide performance.")
+    else:
+        insight_card(T["ins_green"],
+            f"<b>Broadly Satisfactory</b> — Only {neg_pct:.1f}% of Mumbai stations are rated negatively.")
+
+    if avg_rating is not None:
+        insight_card(T["ins_blue"],
+            f"<b>City Average Rating: {avg_rating:.2f} / 5.00</b> — "
+            f"{'Above' if avg_rating >= 3.6 else 'Below' if avg_rating < 3.0 else 'At'} "
+            f"the Positive threshold (3.6). "
+            "Pune average for reference: run the Pune dataset to compare directly.")
+
+    if "fuel_type" in df.columns:
+        cng  = (df["fuel_type"] == "CNG").sum()
+        pct  = cng / total * 100
+        cng_neg = ((df["fuel_type"] == "CNG") & (df["sentiment"] == "Negative")).sum()
+        insight_card(T["ins_purple"],
+            f"<b>CNG Coverage</b> — {int(cng)} of {total} stations ({pct:.1f}%) are CNG-dedicated. "
+            f"{int(cng_neg)} CNG stations have low ratings, signalling potential supply or "
+            "availability reliability issues.")
+
+    if "zone" in df.columns:
+        zone_neg = (
+            df[df["sentiment"] == "Negative"]["zone"].value_counts()
+        )
+        if not zone_neg.empty:
+            worst_zone = zone_neg.index[0]
+            insight_card(T["ins_red"],
+                f"<b>Worst-Performing Zone: {worst_zone}</b> — "
+                f"{zone_neg.iloc[0]} negative-rated stations. "
+                "Prioritise operational audits in this area.")
+
+        zone_avg = df.groupby("zone")["_rating"].mean().sort_values(ascending=False)
+        if len(zone_avg) >= 2:
+            insight_card(T["ins_green"],
+                f"<b>Best Zone: {zone_avg.index[0]}</b> ({zone_avg.iloc[0]:.2f}★ avg) vs "
+                f"<b>Weakest Zone: {zone_avg.index[-1]}</b> ({zone_avg.iloc[-1]:.2f}★ avg). "
+                f"Rating gap of {zone_avg.iloc[0]-zone_avg.iloc[-1]:.2f} stars between best and worst zone.")
+
+    if "_review_count" in df.columns:
+        low_evidence = (df["_review_count"] < 50).sum()
+        if low_evidence > 0:
+            insight_card(T["ins_amber"],
+                f"<b>Low-Evidence Stations: {int(low_evidence)}</b> — "
+                "These stations have fewer than 50 Google reviews. "
+                "Their ratings are less statistically reliable and should be monitored rather than acted upon immediately.")
+
+    if "_rating" in df.columns and "_title" in df.columns:
+        # filter out low-evidence stations (< 50 reviews) before surfacing top/bottom
+        df_evidence = df[df["_review_count"] >= 50] if "_review_count" in df.columns else df
+        if not df_evidence.empty:
+            top5    = df_evidence.nlargest(5, "_rating")[["_title", "_rating"]]
+            bottom5 = df_evidence.nsmallest(5, "_rating")[["_title", "_rating"]]
+            insight_card(T["ins_green"],
+                "<b>Top 5 Stations by Rating (min. 50 reviews):</b> "
+                + "; ".join(f"<i>{r['_title']}</i> ({r['_rating']:.1f}★)" for _, r in top5.iterrows()))
+            insight_card(T["ins_red"],
+                "<b>Bottom 5 Stations — Immediate Action Needed (min. 50 reviews):</b> "
+                + "; ".join(f"<i>{r['_title']}</i> ({r['_rating']:.1f}★)" for _, r in bottom5.iterrows()))
+
+    section("Recommended Actions")
+    actions = []
+    if "zone" in df.columns:
+        for zone in df["zone"].unique():
+            zn = df[df["zone"] == zone]
+            neg_r = (zn["sentiment"] == "Negative").mean() * 100
+            if neg_r > 30:
+                actions.append({
+                    "Priority": "Critical", "Zone": zone,
+                    "Negative %": f"{neg_r:.1f}%",
+                    "Action": "Conduct full operational audit; escalate to zone manager for immediate corrective plan.",
+                })
+            elif neg_r > 15:
+                actions.append({
+                    "Priority": "High", "Zone": zone,
+                    "Negative %": f"{neg_r:.1f}%",
+                    "Action": "Schedule structured review with outlet managers; monitor rating trends monthly.",
+                })
+    if "fuel_type" in df.columns:
+        cng_neg_r = df[df["fuel_type"] == "CNG"]["sentiment"].eq("Negative").mean() * 100
+        if cng_neg_r > 20:
+            actions.append({
+                "Priority": "High", "Zone": "City-wide (CNG)",
+                "Negative %": f"{cng_neg_r:.1f}%",
+                "Action": "Audit CNG supply chain reliability; investigate downtime frequency across low-rated CNG stations.",
+            })
+    if "_review_count" in df.columns:
+        actions.append({
+            "Priority": "Medium", "Zone": "All",
+            "Negative %": "—",
+            "Action": f"Encourage customer reviews at {int(low_evidence if '_review_count' in df.columns else 0)} low-evidence stations to improve data reliability.",
+        })
+
+    if actions:
+        st.table(pd.DataFrame(actions))
+
+
+def tab_station_data(df, df_raw):
+    section("Processed Station Data")
+    cols = ["_title", "_rating", "_review_count", "sentiment",
+            "zone", "fuel_type", "_address", "_lat", "_lng"]
+    cols = [c for c in cols if c in df.columns]
+    rename = {
+        "_title": "Station Name", "_rating": "Avg Rating",
+        "_review_count": "Total Reviews",
+        "sentiment": "Sentiment", "zone": "Zone",
+        "fuel_type": "Fuel Type", "_address": "Address",
+        "_lat": "Latitude", "_lng": "Longitude",
+    }
+    st.dataframe(df[cols].rename(columns=rename), use_container_width=True, height=480)
+
+    csv_bytes = df[cols].rename(columns=rename).to_csv(index=False).encode()
+    st.download_button("Download Processed Data as CSV", data=csv_bytes,
+                       file_name="mumbai_stations_processed.csv", mime="text/csv")
+
+    st.markdown("---")
+    section("Raw Source Data — First 50 Rows")
     st.dataframe(df_raw.head(50), use_container_width=True)
 
 

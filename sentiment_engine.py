@@ -192,6 +192,107 @@ def _clean(text):
     return text.strip()[:512]
 
 
+# ── Mumbai / station-level helpers ───────────────────────────────────────────
+
+def rating_to_sentiment(rating):
+    """Map aggregate station rating to a sentiment label.
+
+    Thresholds:
+      ≤ 2.5  → Negative   (poor customer experience)
+      2.6–3.5 → Neutral   (mixed / average)
+      > 3.5  → Positive   (generally satisfactory)
+    """
+    import math
+    if rating is None or (isinstance(rating, float) and math.isnan(rating)):
+        return "Unknown"
+    if rating <= 2.5:
+        return "Negative"
+    elif rating <= 3.5:
+        return "Neutral"
+    return "Positive"
+
+
+def assign_mumbai_zone(lat, lng):
+    """Assign a named Mumbai geographic zone from WGS-84 coordinates.
+
+    Zone boundaries (approximate):
+      South Mumbai  : lat < 18.970  (Colaba → Worli → Byculla)
+      Central Mumbai: 18.970 ≤ lat < 19.050  (Dadar, Sion, Kurla, Chembur)
+      Western Suburbs (lat ≥ 19.050, lng < 72.880): Bandra → Juhu → Andheri
+      Eastern Suburbs (lat ≥ 19.050, lng ≥ 72.880): Ghatkopar → Vikhroli → Mulund
+      North Suburbs : lat ≥ 19.150  (Goregaon → Kandivali → Borivali)
+    """
+    import math
+    if lat is None or lng is None or (isinstance(lat, float) and math.isnan(lat)):
+        return "Unknown"
+    if lat < 18.970:
+        return "South Mumbai"
+    elif lat < 19.050:
+        return "Central Mumbai"
+    elif lat < 19.150:
+        return "Western Suburbs" if lng < 72.880 else "Eastern Suburbs"
+    else:
+        return "North Suburbs"
+
+
+def normalize_station_dataframe(df):
+    """Normalise a station-level dataframe (one row = one petrol pump).
+
+    Assumptions
+    -----------
+    * totalScore / similar columns are treated as Google-style 1–5 aggregate ratings.
+    * Stations without a valid rating are excluded from sentiment-based charts.
+    * Sentiment is derived from aggregate rating (not BERT); see rating_to_sentiment().
+    * Stations with fewer than 50 reviews are flagged as low-evidence in the dashboard.
+    """
+    import pandas as pd
+    import numpy as np
+
+    df = df.copy()
+    col_lower = {c.lower().strip(): c for c in df.columns}
+
+    def _find(candidates):
+        for c in candidates:
+            if c in col_lower:
+                return col_lower[c]
+        return None
+
+    rename_map = {}
+    for candidates, dst in [
+        (["totalscore", "total_score", "rating", "score", "place_rating"], "_rating"),
+        (["reviewscount", "reviews_count", "review_count", "numreviews", "place_total_ratings"], "_review_count"),
+        (["title", "name", "place_name", "outlet"], "_title"),
+        (["address", "place_address"], "_address"),
+        (["lat", "latitude", "latitude_clean", "location_lat"], "_lat"),
+        (["lng", "longitude", "longitude_clean", "lon", "location_lng"], "_lng"),
+        (["categoryname", "category_name", "category", "retail_category"], "_category"),
+    ]:
+        src = _find(candidates)
+        if src:
+            rename_map[src] = dst
+
+    df = df.rename(columns=rename_map)
+
+    if "_rating" in df.columns:
+        df["_rating"] = pd.to_numeric(df["_rating"], errors="coerce")
+        df["sentiment"] = df["_rating"].apply(rating_to_sentiment)
+
+    if "_lat" in df.columns and "_lng" in df.columns:
+        df["_lat"] = pd.to_numeric(df["_lat"], errors="coerce")
+        df["_lng"] = pd.to_numeric(df["_lng"], errors="coerce")
+        df["zone"] = df.apply(lambda r: assign_mumbai_zone(r["_lat"], r["_lng"]), axis=1)
+
+    if "_category" in df.columns:
+        df["fuel_type"] = df["_category"].apply(
+            lambda x: "CNG" if isinstance(x, str) and "compressed" in x.lower() else "Petrol / Diesel"
+        )
+
+    if "_review_count" in df.columns:
+        df["_review_count"] = pd.to_numeric(df["_review_count"], errors="coerce").fillna(1).clip(lower=1)
+
+    return df
+
+
 def normalize_dataframe(df):
     import pandas as pd
 
