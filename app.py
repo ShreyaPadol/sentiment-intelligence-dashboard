@@ -49,8 +49,8 @@ T = dict(
     ins_purple   = ("#f5f3ff", "#6d28d9"),
     ins_text     = "#1e293b",
     # buttons
-    btn_bg       = "#0f172a",
-    btn_text     = "#ffffff",
+    btn_bg       = "#ffffff",
+    btn_text     = "#1e293b"
 )
 
 SENTIMENT_COLORS = {
@@ -249,6 +249,49 @@ st.markdown(f"""
     [data-testid="stCaptionContainer"] * {{
         color: {T['text_sub']} !important;
         font-size: 0.78rem !important;
+    }}
+
+    /* multiselect — container and input */
+    [data-baseweb="select"] {{
+        background-color: {T['input_bg']} !important;
+    }}
+    [data-baseweb="select"] > div,
+    [data-baseweb="select"] input {{
+        background-color: {T['input_bg']} !important;
+        color: {T['text']} !important;
+    }}
+
+    /* multiselect chips / tags */
+    [data-baseweb="tag"] {{
+        background-color: #e2e8f0 !important;
+        border-radius: 4px !important;
+    }}
+    [data-baseweb="tag"] span {{
+        color: {T['text']} !important;
+        font-size: 0.78rem !important;
+        font-weight: 500 !important;
+    }}
+    [data-baseweb="tag"] [role="button"] {{
+        color: {T['text_sub']} !important;
+    }}
+
+    /* multiselect dropdown menu */
+    [data-baseweb="popover"] {{
+        background-color: {T['card']} !important;
+    }}
+    [data-baseweb="popover"] li {{
+        background-color: {T['card']} !important;
+        color: {T['text']} !important;
+    }}
+    [data-baseweb="popover"] li:hover {{
+        background-color: {T['sidebar']} !important;
+    }}
+
+    /* selectbox dropdown */
+    [data-testid="stSelectbox"] [data-baseweb="select"] > div {{
+        background-color: {T['input_bg']} !important;
+        border-color: {T['border']} !important;
+        color: {T['text']} !important;
     }}
 </style>
 """, unsafe_allow_html=True)
@@ -524,6 +567,8 @@ def tab_overview(df):
             )
             fig_k.update_layout(**chart_layout(
                 height=310, showlegend=False, margin=dict(t=16, b=12, l=8, r=8),
+                xaxis=dict(tickfont=dict(color=T["font_color"]), title_font=dict(color=T["font_color"])),
+                yaxis=dict(tickfont=dict(color=T["font_color"])),
             ))
             with col:
                 st.markdown(f'<div style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:{T["text_sub"]};margin-bottom:4px;">{sentiment}</div>', unsafe_allow_html=True)
