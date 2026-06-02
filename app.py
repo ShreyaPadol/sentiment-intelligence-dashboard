@@ -255,15 +255,16 @@ st.markdown(f"""
         display: none !important;
     }}
 
-    /* multiselect — fix chip overflow / clipping */
-    [data-baseweb="select"] [data-baseweb="input"] {{
-        flex-wrap: wrap !important;
-        overflow: visible !important;
-        min-height: 38px;
+    /* multiselect container */
+    [data-baseweb="select"] {{
+        overflow: hidden !important;
     }}
     [data-baseweb="select"] > div:first-child {{
-        overflow: visible !important;
-        flex-wrap: wrap !important;
+        overflow: hidden !important;
+        padding-left: 6px !important;
+    }}
+    [data-baseweb="select"] [data-baseweb="input"] {{
+        min-height: 38px;
     }}
 
     /* date input — light background, dark text */
