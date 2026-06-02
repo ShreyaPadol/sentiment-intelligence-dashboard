@@ -255,16 +255,17 @@ st.markdown(f"""
         display: none !important;
     }}
 
-    /* multiselect container */
-    [data-baseweb="select"] {{
-        overflow: hidden !important;
-    }}
+    /* multiselect — fix first-chip left clipping */
     [data-baseweb="select"] > div:first-child {{
-        overflow: hidden !important;
-        padding-left: 6px !important;
+        padding-left: 10px !important;
+        box-sizing: border-box !important;
     }}
     [data-baseweb="select"] [data-baseweb="input"] {{
+        padding-left: 8px !important;
         min-height: 38px;
+    }}
+    [data-baseweb="tag"] {{
+        margin-left: 4px !important;
     }}
 
     /* date input — light background, dark text */
