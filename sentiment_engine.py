@@ -84,6 +84,39 @@ def _stars_to_label(stars):
     return "Positive"
 
 
+# Phrases that are unambiguously negative regardless of surrounding context.
+# If any of these appear in the text and the model says Positive, we override to Negative.
+_NEGATIVE_OVERRIDES = [
+    r"\bno\s+cng\b",
+    r"\bcng\s+not\s+available\b",
+    r"\bcng\s+unavailable\b",
+    r"\bno\s+cng\s+available\b",
+    r"\bfraud\b",
+    r"\bscam\b",
+    r"\bcheating\b",
+    r"\bcheat\b",
+    r"\bovercharg",
+    r"\bripoff\b",
+    r"\brip\s+off\b",
+    r"\bfake\b",
+    r"\btheft\b",
+    r"\bdishonest\b",
+    r"\bmanipulat",
+]
+_NEGATIVE_OVERRIDE_RE = re.compile("|".join(_NEGATIVE_OVERRIDES), re.IGNORECASE)
+
+
+def _apply_override(text, result):
+    """If the text contains a hard-negative phrase, downgrade Positive → Negative."""
+    if result["sentiment"] == "Positive" and _NEGATIVE_OVERRIDE_RE.search(text):
+        result = dict(result)
+        result["sentiment"]    = "Negative"
+        result["star_rating"]  = 2
+        result["prob_negative"] = max(result["prob_negative"], 0.6)
+        result["prob_positive"] = min(result["prob_positive"], 0.2)
+    return result
+
+
 def predict_sentiment_batch(texts, batch_size=32):
     _load_model()
     all_results = []
@@ -103,15 +136,16 @@ def predict_sentiment_batch(texts, batch_size=32):
         probs = torch.softmax(logits, dim=-1).numpy()
         predicted_stars = np.argmax(probs, axis=1) + 1
 
-        for stars, row in zip(predicted_stars, probs):
-            all_results.append({
-                "sentiment": _stars_to_label(int(stars)),
-                "confidence": float(row.max()),
-                "star_rating": int(stars),
+        for stars, row, original_text in zip(predicted_stars, probs, texts[i:i + batch_size]):
+            result = {
+                "sentiment":     _stars_to_label(int(stars)),
+                "confidence":    float(row.max()),
+                "star_rating":   int(stars),
                 "prob_negative": float(row[0] + row[1]),
-                "prob_neutral": float(row[2]),
+                "prob_neutral":  float(row[2]),
                 "prob_positive": float(row[3] + row[4]),
-            })
+            }
+            all_results.append(_apply_override(original_text, result))
 
     return all_results
 
