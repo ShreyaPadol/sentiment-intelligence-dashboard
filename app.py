@@ -245,6 +245,39 @@ st.markdown(f"""
     .modebar {{ opacity: 0 !important; transition: opacity 0.15s; }}
     .modebar:hover {{ opacity: 1 !important; }}
 
+    /* hide the sidebar collapse arrow icon text (keyboard_double_arrow) */
+    [data-testid="stSidebarCollapseButton"] svg {{ display: none; }}
+    [data-testid="collapsedControl"] span,
+    [data-testid="stSidebarCollapseButton"] span {{
+        font-size: 0 !important;
+    }}
+    button[kind="header"] span[class*="material"] {{
+        display: none !important;
+    }}
+
+    /* multiselect — fix chip overflow / clipping */
+    [data-baseweb="select"] [data-baseweb="input"] {{
+        flex-wrap: wrap !important;
+        overflow: visible !important;
+        min-height: 38px;
+    }}
+    [data-baseweb="select"] > div:first-child {{
+        overflow: visible !important;
+        flex-wrap: wrap !important;
+    }}
+
+    /* date input — light background, dark text */
+    [data-testid="stDateInput"] input,
+    [data-testid="stDateInput"] > div {{
+        background-color: {T['input_bg']} !important;
+        color: {T['text']} !important;
+        border-color: {T['border']} !important;
+    }}
+    [data-testid="stDateInput"] * {{
+        color: {T['text']} !important;
+        background-color: {T['input_bg']} !important;
+    }}
+
     /* caption text */
     [data-testid="stCaptionContainer"] * {{
         color: {T['text_sub']} !important;
@@ -315,6 +348,7 @@ def chart_layout(**overrides):
         hoverlabel    = dict(font_size=11, font_family="Inter, sans-serif", bgcolor=T["hover_bg"]),
         xaxis         = axis_style,
         yaxis         = axis_style,
+        legend        = dict(font=dict(color=T["font_color"], size=11), title_font=dict(color=T["font_color"])),
     )
     base.update(overrides)
     base.pop("title_text", None)
