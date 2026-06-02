@@ -71,139 +71,216 @@ STOPWORDS = {
 # ── css injection ──────────────────────────────────────────────────────────────
 st.markdown(f"""
 <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800&display=swap');
 
+    /* ── base reset ── */
     html, body, .stApp, [data-testid="stAppViewContainer"],
     [data-testid="stMain"], [data-testid="block-container"], .main {{
         background-color: {T['bg']} !important;
         color: {T['text']} !important;
-        font-family: 'Inter', sans-serif !important;
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif !important;
     }}
 
     .block-container {{
-        padding: 2rem 2.5rem 3rem 2.5rem;
-        max-width: 1400px;
+        padding: 1.75rem 2.5rem 3rem 2.5rem;
+        max-width: 1440px;
         background-color: {T['bg']} !important;
     }}
 
-    /* headings */
-    h1, h2, h3 {{
+    /* ── typography ── */
+    h1, h2, h3, h4 {{
         color: {T['text']} !important;
         font-family: 'Inter', sans-serif !important;
+        letter-spacing: -0.02em;
     }}
     h1 {{
-        font-size: 1.55rem !important;
-        font-weight: 700 !important;
-        letter-spacing: -0.025em;
-        margin-bottom: 0.15rem !important;
+        font-size: 1.5rem !important;
+        font-weight: 800 !important;
+        line-height: 1.25 !important;
+        margin-bottom: 0.1rem !important;
     }}
-
-    /* generic text */
     p, li, span, label, div, caption {{
         color: {T['text']} !important;
         font-family: 'Inter', sans-serif !important;
     }}
 
-    /* metric cards */
-    [data-testid="stMetric"] {{
-        background: {T['card']} !important;
+    /* ── page header area ── */
+    .page-header {{
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        padding: 20px 24px;
+        background: {T['card']};
+        border: 1px solid {T['border']};
+        border-radius: 12px;
+        margin-bottom: 1.5rem;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+    }}
+    .page-header-icon {{
+        width: 40px;
+        height: 40px;
+        background: linear-gradient(135deg, #3b82f6 0%, #6366f1 100%);
         border-radius: 10px;
-        padding: 18px 22px;
-        border: 1px solid {T['border']} !important;
-        box-shadow: 0 1px 4px rgba(0,0,0,0.12);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.2rem;
+        flex-shrink: 0;
     }}
-    [data-testid="stMetricLabel"] {{
-        font-size: 0.68rem !important;
-        font-weight: 700 !important;
-        text-transform: uppercase;
-        letter-spacing: 0.08em;
-        color: {T['text_sub']} !important;
-    }}
-    [data-testid="stMetricValue"] {{
-        font-size: 1.65rem !important;
-        font-weight: 700 !important;
+    .page-header-title {{
+        font-size: 1.2rem;
+        font-weight: 800;
         color: {T['text']} !important;
+        letter-spacing: -0.025em;
         line-height: 1.2;
     }}
-    [data-testid="stMetricDelta"] {{
-        font-size: 0.75rem !important;
-        font-weight: 500 !important;
+    .page-header-sub {{
+        font-size: 0.8rem;
+        color: {T['text_sub']} !important;
+        font-weight: 400;
+        margin-top: 2px;
+        letter-spacing: 0;
+    }}
+
+    /* ── metric cards ── */
+    [data-testid="stMetric"] {{
+        background: {T['card']} !important;
+        border-radius: 12px;
+        padding: 20px 24px 18px 24px;
+        border: 1px solid {T['border']} !important;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+        position: relative;
+        overflow: hidden;
+        transition: box-shadow 0.15s ease;
+    }}
+    [data-testid="stMetric"]:hover {{
+        box-shadow: 0 4px 12px rgba(0,0,0,0.09) !important;
+    }}
+    [data-testid="stMetricLabel"] > div {{
+        font-size: 0.65rem !important;
+        font-weight: 700 !important;
+        text-transform: uppercase !important;
+        letter-spacing: 0.09em !important;
         color: {T['text_sub']} !important;
     }}
-
-    /* section dividers */
-    .section-title {{
-        font-size: 0.68rem;
-        font-weight: 700;
-        text-transform: uppercase;
-        letter-spacing: 0.1em;
-        color: {T['section_text']} !important;
-        margin: 2rem 0 0.8rem 0;
-        padding-bottom: 8px;
-        border-bottom: 1px solid {T['border']};
+    [data-testid="stMetricValue"] > div {{
+        font-size: 1.75rem !important;
+        font-weight: 800 !important;
+        color: {T['text']} !important;
+        line-height: 1.15 !important;
+        letter-spacing: -0.03em !important;
+        margin-top: 4px !important;
+    }}
+    [data-testid="stMetricDelta"] > div {{
+        font-size: 0.72rem !important;
+        font-weight: 500 !important;
+        color: {T['text_sub']} !important;
+        margin-top: 4px !important;
     }}
 
-    /* chart card wrapper */
+    /* ── section titles ── */
+    .section-title {{
+        font-size: 0.62rem;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 0.12em;
+        color: {T['section_text']} !important;
+        margin: 2.25rem 0 1rem 0;
+        padding-bottom: 10px;
+        border-bottom: 1px solid {T['border']};
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }}
+
+    /* ── chart cards ── */
     .chart-card {{
         background: {T['card']};
-        border-radius: 10px;
+        border-radius: 12px;
         border: 1px solid {T['border']};
-        padding: 4px;
-        box-shadow: 0 1px 4px rgba(0,0,0,0.1);
-        margin-bottom: 1rem;
+        padding: 4px 4px 0 4px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+        margin-bottom: 1.25rem;
+        overflow: hidden;
+        transition: box-shadow 0.15s ease;
+    }}
+    .chart-card:hover {{
+        box-shadow: 0 4px 16px rgba(0,0,0,0.08);
     }}
 
-    /* insight cards */
+    /* ── insight cards ── */
     .insight-card {{
-        border-radius: 8px;
-        padding: 14px 18px;
+        border-radius: 10px;
+        padding: 14px 18px 14px 16px;
         margin-bottom: 10px;
-        border-left: 4px solid;
-        font-size: 0.875rem;
-        line-height: 1.65;
+        border-left: 3px solid;
+        font-size: 0.855rem;
+        line-height: 1.7;
         color: {T['ins_text']} !important;
+        transition: transform 0.1s ease;
     }}
-    .insight-card b {{ color: {T['text']} !important; }}
+    .insight-card:hover {{ transform: translateX(2px); }}
+    .insight-card b {{
+        color: {T['text']} !important;
+        font-weight: 700;
+    }}
 
-    /* tabs */
+    /* ── tabs ── */
     .stTabs [data-baseweb="tab-list"] {{
         gap: 0;
         background: transparent !important;
-        border-bottom: 2px solid {T['border']} !important;
+        border-bottom: 1px solid {T['border']} !important;
+        padding: 0 2px;
     }}
     .stTabs [data-baseweb="tab"] {{
-        font-size: 0.75rem !important;
+        font-size: 0.72rem !important;
         font-weight: 700 !important;
         text-transform: uppercase;
-        letter-spacing: 0.07em;
-        padding: 10px 20px;
+        letter-spacing: 0.08em;
+        padding: 10px 18px 9px 18px;
         border-radius: 0 !important;
         color: {T['section_text']} !important;
         background: transparent !important;
-        border-bottom: 2px solid transparent;
-        margin-bottom: -2px;
+        border-bottom: 2px solid transparent !important;
+        margin-bottom: -1px;
+        transition: color 0.15s;
+    }}
+    .stTabs [data-baseweb="tab"]:hover {{
+        color: {T['text_sub']} !important;
     }}
     .stTabs [aria-selected="true"] {{
         color: {T['text']} !important;
-        border-bottom-color: {T['text']} !important;
+        border-bottom-color: #3b82f6 !important;
         background: transparent !important;
     }}
     .stTabs [data-baseweb="tab-panel"] {{
         background: transparent !important;
+        padding-top: 1.5rem !important;
     }}
 
-    /* sidebar */
+    /* ── sidebar ── */
     [data-testid="stSidebar"] {{
         background: {T['sidebar']} !important;
         border-right: 1px solid {T['border']} !important;
     }}
-    [data-testid="stSidebarContent"] {{ padding: 1.5rem 1rem; }}
+    [data-testid="stSidebarContent"] {{
+        padding: 1.75rem 1.25rem 1.5rem 1.25rem;
+    }}
     [data-testid="stSidebar"] * {{ color: {T['text']} !important; }}
-    [data-testid="stSidebar"] [data-testid="stMarkdownContainer"] * {{
-        color: {T['text']} !important;
+    [data-testid="stSidebar"] h3 {{
+        font-size: 0.65rem !important;
+        font-weight: 800 !important;
+        text-transform: uppercase !important;
+        letter-spacing: 0.1em !important;
+        color: {T['section_text']} !important;
+        margin-bottom: 0.6rem !important;
+    }}
+    [data-testid="stSidebar"] hr {{
+        border-color: {T['border']} !important;
+        margin: 1.25rem 0 !important;
     }}
 
-    /* inputs and selects */
+    /* ── inputs / selects / radio ── */
     [data-testid="stSelectbox"] > div,
     [data-testid="stMultiSelect"] > div,
     .stRadio > div {{
@@ -211,51 +288,58 @@ st.markdown(f"""
         border-color: {T['border']} !important;
         color: {T['text']} !important;
     }}
+    .stRadio label {{
+        font-size: 0.82rem !important;
+        font-weight: 500 !important;
+    }}
 
-    /* dataframe */
+    /* ── dataframe ── */
     [data-testid="stDataFrame"] {{
-        border-radius: 8px;
+        border-radius: 10px;
         overflow: hidden;
         border: 1px solid {T['border']} !important;
         background: {T['card']} !important;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
     }}
     [data-testid="stDataFrame"] * {{ color: {T['text']} !important; }}
 
-    /* info / warning / error boxes */
+    /* ── alerts ── */
     [data-testid="stAlert"] {{
-        background: {T['card']} !important;
-        border-color: {T['border']} !important;
-        color: {T['text']} !important;
+        border-radius: 10px !important;
+        border-left-width: 3px !important;
+        font-size: 0.855rem !important;
     }}
 
-    /* download button */
+    /* ── download button ── */
     .stDownloadButton > button {{
-        font-size: 0.75rem !important;
-        font-weight: 600 !important;
-        letter-spacing: 0.05em;
+        font-size: 0.72rem !important;
+        font-weight: 700 !important;
+        letter-spacing: 0.06em;
         text-transform: uppercase;
-        border-radius: 6px !important;
-        padding: 8px 18px !important;
-        background: {T['btn_bg']} !important;
-        color: {T['btn_text']} !important;
-        border: none !important;
+        border-radius: 8px !important;
+        padding: 9px 20px !important;
+        background: {T['card']} !important;
+        color: {T['text']} !important;
+        border: 1px solid {T['border']} !important;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.05) !important;
+        transition: box-shadow 0.15s, background 0.15s !important;
+    }}
+    .stDownloadButton > button:hover {{
+        background: {T['sidebar']} !important;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.08) !important;
     }}
 
-    /* modebar */
-    .modebar {{ opacity: 0 !important; transition: opacity 0.15s; }}
+    /* ── modebar ── */
+    .modebar {{ opacity: 0 !important; transition: opacity 0.2s; }}
     .modebar:hover {{ opacity: 1 !important; }}
 
-    /* hide the sidebar collapse arrow icon text (keyboard_double_arrow) */
+    /* ── hide sidebar collapse icon text ── */
     [data-testid="stSidebarCollapseButton"] svg {{ display: none; }}
     [data-testid="collapsedControl"] span,
-    [data-testid="stSidebarCollapseButton"] span {{
-        font-size: 0 !important;
-    }}
-    button[kind="header"] span[class*="material"] {{
-        display: none !important;
-    }}
+    [data-testid="stSidebarCollapseButton"] span {{ font-size: 0 !important; }}
+    button[kind="header"] span[class*="material"] {{ display: none !important; }}
 
-    /* multiselect — fix first-chip left clipping */
+    /* ── multiselect — fix first-chip left clipping ── */
     [data-baseweb="select"] > div:first-child {{
         padding-left: 10px !important;
         box-sizing: border-box !important;
@@ -264,11 +348,9 @@ st.markdown(f"""
         padding-left: 8px !important;
         min-height: 38px;
     }}
-    [data-baseweb="tag"] {{
-        margin-left: 4px !important;
-    }}
+    [data-baseweb="tag"] {{ margin-left: 4px !important; }}
 
-    /* date input — light background, dark text */
+    /* ── date input ── */
     [data-testid="stDateInput"] input,
     [data-testid="stDateInput"] > div {{
         background-color: {T['input_bg']} !important;
@@ -280,53 +362,102 @@ st.markdown(f"""
         background-color: {T['input_bg']} !important;
     }}
 
-    /* caption text */
+    /* ── caption ── */
     [data-testid="stCaptionContainer"] * {{
         color: {T['text_sub']} !important;
-        font-size: 0.78rem !important;
+        font-size: 0.76rem !important;
     }}
 
-    /* multiselect — container and input */
-    [data-baseweb="select"] {{
-        background-color: {T['input_bg']} !important;
-    }}
+    /* ── multiselect — container / input ── */
+    [data-baseweb="select"] {{ background-color: {T['input_bg']} !important; }}
     [data-baseweb="select"] > div,
     [data-baseweb="select"] input {{
         background-color: {T['input_bg']} !important;
         color: {T['text']} !important;
     }}
 
-    /* multiselect chips / tags */
+    /* ── multiselect chips ── */
     [data-baseweb="tag"] {{
-        background-color: #e2e8f0 !important;
-        border-radius: 4px !important;
+        background-color: #e8edf5 !important;
+        border-radius: 5px !important;
+        border: 1px solid {T['border']} !important;
     }}
     [data-baseweb="tag"] span {{
         color: {T['text']} !important;
-        font-size: 0.78rem !important;
-        font-weight: 500 !important;
+        font-size: 0.76rem !important;
+        font-weight: 600 !important;
     }}
-    [data-baseweb="tag"] [role="button"] {{
-        color: {T['text_sub']} !important;
-    }}
+    [data-baseweb="tag"] [role="button"] {{ color: {T['text_sub']} !important; }}
 
-    /* multiselect dropdown menu */
-    [data-baseweb="popover"] {{
-        background-color: {T['card']} !important;
-    }}
+    /* ── dropdown menus ── */
+    [data-baseweb="popover"] {{ background-color: {T['card']} !important; }}
     [data-baseweb="popover"] li {{
         background-color: {T['card']} !important;
         color: {T['text']} !important;
+        font-size: 0.83rem !important;
     }}
-    [data-baseweb="popover"] li:hover {{
-        background-color: {T['sidebar']} !important;
-    }}
+    [data-baseweb="popover"] li:hover {{ background-color: {T['sidebar']} !important; }}
 
-    /* selectbox dropdown */
+    /* ── selectbox ── */
     [data-testid="stSelectbox"] [data-baseweb="select"] > div {{
         background-color: {T['input_bg']} !important;
         border-color: {T['border']} !important;
         color: {T['text']} !important;
+    }}
+
+    /* ── table (st.table) ── */
+    table {{
+        border-collapse: collapse;
+        width: 100%;
+        font-size: 0.83rem !important;
+    }}
+    thead tr {{
+        background: {T['sidebar']} !important;
+        border-bottom: 2px solid {T['border']};
+    }}
+    thead th {{
+        font-size: 0.65rem !important;
+        font-weight: 800 !important;
+        text-transform: uppercase !important;
+        letter-spacing: 0.08em !important;
+        color: {T['text_sub']} !important;
+        padding: 10px 14px !important;
+    }}
+    tbody tr {{ border-bottom: 1px solid {T['border']}; }}
+    tbody tr:last-child {{ border-bottom: none; }}
+    tbody td {{
+        padding: 9px 14px !important;
+        color: {T['text']} !important;
+    }}
+    tbody tr:hover {{ background: #f8fafc !important; }}
+
+    /* ── divider ── */
+    hr {{
+        border: none !important;
+        border-top: 1px solid {T['border']} !important;
+        margin: 1.5rem 0 !important;
+    }}
+
+    /* ── Plotly SVG text — legend labels, axis titles, tick labels ── */
+    /* CSS `color` doesn't touch SVG; must use `fill` */
+    .js-plotly-plot .plotly svg text,
+    .js-plotly-plot .plotly .legendtext,
+    .js-plotly-plot .plotly .legend text,
+    .js-plotly-plot .plotly .gtitle text,
+    .js-plotly-plot .plotly .xtitle,
+    .js-plotly-plot .plotly .ytitle,
+    .js-plotly-plot .plotly .g-xtitle text,
+    .js-plotly-plot .plotly .g-ytitle text,
+    .js-plotly-plot .plotly .xtick text,
+    .js-plotly-plot .plotly .ytick text,
+    .js-plotly-plot .plotly .colorbar text,
+    .js-plotly-plot .plotly .annotation text {{
+        fill: {T['font_color']} !important;
+    }}
+    /* legend title specifically */
+    .js-plotly-plot .plotly .legend .legendtitletext {{
+        fill: {T['text_sub']} !important;
+        font-weight: 600 !important;
     }}
 </style>
 """, unsafe_allow_html=True)
@@ -358,7 +489,12 @@ def chart_layout(**overrides):
 
 
 def section(label):
-    st.markdown(f'<div class="section-title">{label}</div>', unsafe_allow_html=True)
+    st.markdown(
+        f'<div class="section-title">'
+        f'<span style="display:inline-block;width:3px;height:12px;background:#3b82f6;border-radius:2px;flex-shrink:0;"></span>'
+        f'{label}</div>',
+        unsafe_allow_html=True,
+    )
 
 
 def chart(fig):
@@ -440,10 +576,15 @@ def sidebar():
 # ── main ───────────────────────────────────────────────────────────────────────
 
 def main():
-    st.title("Sentiment Intelligence Dashboard")
-    st.caption(
-        "Sentiment analysis  ·  Issue categorisation  ·  "
-        "Time-series trends  ·  Operational insights"
+    st.markdown(
+        '<div class="page-header">'
+        '<div class="page-header-icon">📊</div>'
+        '<div>'
+        '<div class="page-header-title">Sentiment Intelligence Dashboard</div>'
+        '<div class="page-header-sub">Sentiment analysis &nbsp;·&nbsp; Issue categorisation &nbsp;·&nbsp; Time-series trends &nbsp;·&nbsp; Operational insights</div>'
+        '</div>'
+        '</div>',
+        unsafe_allow_html=True,
     )
 
     df_raw = sidebar()
