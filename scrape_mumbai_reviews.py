@@ -492,6 +492,8 @@ def scrape_all(limit=None, resume=True, headless=True, merge_only=False):
     if limit:
         pumps = pumps.head(limit)
 
+    PROACTIVE_RESTART_EVERY = 15   # restart Chrome every N stations to avoid OOM crashes
+
     rows = list(pumps.iterrows())
     total = len(rows)
     scraped_count = 0
@@ -517,6 +519,15 @@ def scrape_all(limit=None, resume=True, headless=True, merge_only=False):
             log.info(f"[{i+1}/{total}] SKIP (cached {len(existing)} reviews): {title}")
             i += 1
             continue
+
+        # Proactive Chrome restart every N stations to prevent OOM crashes
+        if scraped_count > 0 and scraped_count % PROACTIVE_RESTART_EVERY == 0:
+            log.info(f"  [Proactive restart after {scraped_count} stations to free memory]")
+            try:
+                driver.quit()
+            except Exception:
+                pass
+            driver = make_driver(headless=headless)
 
         log.info(f"[{i+1}/{total}] Scraping: {title}")
         reviews = []
