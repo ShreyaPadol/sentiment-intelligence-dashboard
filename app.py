@@ -543,58 +543,24 @@ def load_default_mumbai():
 
 @st.cache_data(show_spinner=False)
 def load_mumbai_reviews_nlp():
-    """
-    Load real scraped Google Maps reviews for Mumbai petrol pumps.
-    Priority order:
-      1. mumbai_petrol_reviews_nlp.csv  — pre-analysed (fastest)
-      2. mumbai_petrol_reviews.csv      — raw scraped, run NLP now
-    If neither exists (scrape not yet run) a clear error is shown.
-    """
+    """Load real scraped + BERT-analysed Google Maps reviews for Mumbai petrol pumps."""
     import os
+    nlp_path = "mumbai_petrol_reviews_nlp.csv"
+    raw_path = "mumbai_petrol_reviews.csv"
 
-    nlp_path   = "mumbai_petrol_reviews_nlp.csv"
-    raw_path   = "mumbai_petrol_reviews.csv"
-
+    # Use pre-analysed file if it's up-to-date
     if os.path.exists(nlp_path):
-        df = pd.read_csv(nlp_path)
-        # Re-run NLP if the raw file is newer (i.e. fresh scrape happened)
-        if os.path.exists(raw_path):
-            raw_mtime = os.path.getmtime(raw_path)
-            nlp_mtime = os.path.getmtime(nlp_path)
-            if raw_mtime > nlp_mtime:
-                # raw is newer — fall through to re-analyse
-                pass
-            else:
-                return df
+        if not os.path.exists(raw_path) or \
+           os.path.getmtime(nlp_path) >= os.path.getmtime(raw_path):
+            return pd.read_csv(nlp_path)
 
+    # Otherwise run NLP on the raw scraped file
     if not os.path.exists(raw_path):
-        # Check if per-station JSON files exist (scrape in progress)
-        import glob
-        json_files = glob.glob("scraped_reviews/*.json")
-        if json_files:
-            # Merge what we have so far
-            import json as _json
-            all_reviews = []
-            for jf in sorted(json_files):
-                with open(jf, encoding="utf-8") as f:
-                    all_reviews.extend(_json.load(f))
-            if all_reviews:
-                df = pd.DataFrame(all_reviews).drop_duplicates("review_id")
-                df = df[df["text"].notna() & (df["text"].str.strip() != "")]
-                df.to_csv(raw_path, index=False)
-                # fall through to NLP below
-            else:
-                return None
-        else:
-            return None   # caller handles this
-
+        return None
     df = pd.read_csv(raw_path)
-    if df.empty or "text" not in df.columns:
-        return df
-
-    # Run BERT sentiment + issue classification on real scraped reviews
-    texts = df["text"].fillna("").tolist()
-    results = predict_sentiment_batch(texts, batch_size=64)
+    df = df[df["text"].notna() & (df["text"].str.strip() != "")].reset_index(drop=True)
+    with st.spinner("Running BERT sentiment analysis on scraped reviews…"):
+        results = predict_sentiment_batch(df["text"].fillna("").tolist(), batch_size=64)
     df["sentiment"]      = [r["sentiment"]    for r in results]
     df["confidence"]     = [r["confidence"]   for r in results]
     df["bert_star"]      = [r["star_rating"]  for r in results]
@@ -646,29 +612,25 @@ def sidebar():
         df_raw = load_default_pune()
         st.sidebar.success(f"{len(df_raw):,} reviews loaded")
     elif mode == "Mumbai Petrol Pumps (163 stations)":
-        mumbai_view = st.sidebar.radio(
-            "Analysis Mode",
-            ["Station-Level (aggregate ratings)", "Review-Level NLP (deep analysis)"],
+        view = st.sidebar.radio(
+            "View",
+            ["NLP Review Analysis (real scraped)", "Station-Level (aggregate ratings)"],
             label_visibility="collapsed",
         )
-        if mumbai_view == "Review-Level NLP (deep analysis)":
+        if view == "NLP Review Analysis (real scraped)":
             df_raw = load_mumbai_reviews_nlp()
             if df_raw is None or df_raw.empty:
-                st.sidebar.error(
-                    "No scraped review data found yet.\n\n"
-                    "Run the scraper first:\n"
-                    "```\npython scrape_mumbai_reviews.py\n```"
-                )
+                st.sidebar.error("No scraped data found. Run:\n```\npython scrape_mumbai_reviews.py\n```")
                 st.session_state["mumbai_nlp_mode"] = False
             else:
-                st.sidebar.success(f"{len(df_raw):,} real Google reviews loaded")
                 n_stations = df_raw["station_name"].nunique() if "station_name" in df_raw.columns else "—"
-                st.sidebar.info(f"Real scraped reviews · {n_stations} stations · BERT NLP enriched")
+                st.sidebar.success(f"{len(df_raw):,} real Google Maps reviews")
+                st.sidebar.info(f"Scraped from {n_stations} stations · BERT sentiment · Issue classification")
                 st.session_state["mumbai_nlp_mode"] = True
         else:
             df_raw = load_default_mumbai()
             st.sidebar.success(f"{len(df_raw):,} stations loaded")
-            st.sidebar.info("Station-level dataset — sentiment derived from aggregate ratings.")
+            st.sidebar.info("Station-level aggregate ratings.")
             st.session_state["mumbai_nlp_mode"] = False
     else:
         uploaded = st.sidebar.file_uploader(
