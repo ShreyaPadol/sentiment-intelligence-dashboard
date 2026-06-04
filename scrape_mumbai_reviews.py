@@ -114,6 +114,20 @@ def handle_consent(driver):
     return False
 
 
+def safe_get(driver, url, timeout=PAGE_LOAD_TIMEOUT):
+    """Navigate to url, stop the page after timeout regardless of exception type."""
+    try:
+        driver.set_page_load_timeout(timeout)
+        driver.get(url)
+    except Exception:
+        pass
+    # Always stop any pending load so nothing hangs downstream
+    try:
+        driver.execute_script("window.stop();")
+    except Exception:
+        pass
+
+
 def search_station(driver, name, lat, lng):
     """
     Navigate to Google Maps and land on the station's place page.
@@ -124,13 +138,7 @@ def search_station(driver, name, lat, lng):
         f"https://www.google.com/maps/search/{query}"
         f"/@{lat},{lng},17z?hl=en"
     )
-    try:
-        driver.set_page_load_timeout(PAGE_LOAD_TIMEOUT)
-        driver.get(url)
-    except TimeoutException:
-        pass  # partial load is fine
-    except Exception:
-        pass
+    safe_get(driver, url)
     time.sleep(2)
     handle_consent(driver)
 
@@ -454,13 +462,7 @@ def _do_scrape_one(drv, title, address, lat, lng, rating, rc, brand, cat, zone):
         log.warning("  -> Fallback: searching by address")
         query2 = quote(f"{title} {address[:60]}")
         url2 = f"https://www.google.com/maps/search/{query2}?hl=en"
-        try:
-            drv.set_page_load_timeout(PAGE_LOAD_TIMEOUT)
-            drv.get(url2)
-        except TimeoutException:
-            pass
-        except Exception:
-            pass
+        safe_get(drv, url2)
         time.sleep(2)
         handle_consent(drv)
         try:
