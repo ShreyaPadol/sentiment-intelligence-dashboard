@@ -350,7 +350,7 @@ def extract_reviews_from_page(driver, station_name, station_address,
                 continue
 
             review_id = hashlib.md5(
-                f"{station_name}|{author}|{text}".encode()
+                f"{station_name}|{lat}|{lng}|{author}|{text}".encode()
             ).hexdigest()
 
             reviews.append({
