@@ -1,6 +1,6 @@
 """
 Mumbai Petrol Pump Intelligence Platform
-Sentiment & NLP Analysis Dashboard
+Customer Sentiment Analysis Dashboard
 """
 
 import re
@@ -97,19 +97,20 @@ html, body, .stApp, [data-testid="stAppViewContainer"],
 
 /* ── Sidebar ── */
 [data-testid="stSidebar"] {
-    background: #0f172a !important;
-    border-right: none !important;
+    background: #ffffff !important;
+    border-right: 1px solid #e2e8f0 !important;
 }
-[data-testid="stSidebarContent"] { padding: 1.5rem 1.2rem; }
-[data-testid="stSidebar"] * { color: #cbd5e1 !important; font-family: 'Inter', sans-serif !important; }
+[data-testid="stSidebarContent"] { padding: 1.5rem 1.25rem; }
+[data-testid="stSidebar"] * { color: #0f172a !important; font-family: 'Inter', sans-serif !important; }
 [data-testid="stSidebar"] h1,
 [data-testid="stSidebar"] h2,
-[data-testid="stSidebar"] h3 { color: #f1f5f9 !important; }
-[data-testid="stSidebar"] .stRadio label { color: #cbd5e1 !important; font-size: 0.83rem !important; }
-[data-testid="stSidebar"] hr { border-color: #1e293b !important; margin: 1rem 0 !important; }
-[data-testid="stSidebar"] [data-baseweb="select"] > div { background: #1e293b !important; border-color: #334155 !important; }
-[data-testid="stSidebar"] [data-baseweb="select"] span { color: #e2e8f0 !important; }
-[data-testid="stSidebar"] [data-baseweb="tag"] { background: #1d4ed8 !important; }
+[data-testid="stSidebar"] h3 { color: #0f172a !important; }
+[data-testid="stSidebar"] .stRadio label { color: #374151 !important; font-size: 0.83rem !important; }
+[data-testid="stSidebar"] hr { border-color: #e2e8f0 !important; margin: 1.1rem 0 !important; }
+[data-testid="stSidebar"] [data-baseweb="select"] > div { background: #f8fafc !important; border-color: #e2e8f0 !important; }
+[data-testid="stSidebar"] [data-baseweb="select"] span { color: #0f172a !important; }
+[data-testid="stSidebar"] [data-baseweb="tag"] { background: #dbeafe !important; }
+[data-testid="stSidebar"] [data-baseweb="tag"] span { color: #1e40af !important; }
 
 /* ── Metric cards ── */
 [data-testid="stMetric"] {
@@ -316,7 +317,7 @@ def load_mumbai_nlp():
         return None
     df = pd.read_csv(raw)
     df = df[df["text"].notna() & (df["text"].str.strip() != "")].reset_index(drop=True)
-    with st.spinner("Running BERT sentiment analysis…"):
+    with st.spinner("Analysing customer reviews — this may take a moment on first load…"):
         results = predict_sentiment_batch(df["text"].fillna("").tolist(), batch_size=64)
     df["sentiment"]      = [r["sentiment"]   for r in results]
     df["confidence"]     = [r["confidence"]  for r in results]
@@ -342,13 +343,13 @@ def run_bert(texts_tuple):
 
 def sidebar():
     st.sidebar.markdown("""
-    <div style="padding:0 0 1.5rem 0;">
-        <div style="font-size:1.15rem;font-weight:800;color:#f1f5f9;letter-spacing:-0.02em;">⛽ PumpIQ</div>
-        <div style="font-size:0.72rem;color:#64748b;margin-top:3px;">Petrol Pump Intelligence Platform</div>
+    <div style="padding:0 0 1.25rem 0;border-bottom:1px solid #e2e8f0;margin-bottom:1.25rem;">
+        <div style="font-size:1.05rem;font-weight:800;color:#0f172a;letter-spacing:-0.02em;">⛽ Mumbai Fuel Intelligence</div>
+        <div style="font-size:0.72rem;color:#64748b;margin-top:3px;font-weight:400;">Customer Sentiment Analysis Platform</div>
     </div>
     """, unsafe_allow_html=True)
 
-    st.sidebar.markdown('<div style="font-size:0.6rem;font-weight:700;text-transform:uppercase;letter-spacing:0.12em;color:#475569;margin-bottom:8px;">Dataset</div>', unsafe_allow_html=True)
+    st.sidebar.markdown('<div style="font-size:0.6rem;font-weight:700;text-transform:uppercase;letter-spacing:0.12em;color:#64748b;margin-bottom:8px;">Select Dataset</div>', unsafe_allow_html=True)
 
     mode = st.sidebar.radio(
         "Dataset",
@@ -361,43 +362,45 @@ def sidebar():
 
     if mode == "Mumbai Petrol Pumps":
         st.sidebar.markdown("---")
-        st.sidebar.markdown('<div style="font-size:0.6rem;font-weight:700;text-transform:uppercase;letter-spacing:0.12em;color:#475569;margin-bottom:8px;">View</div>', unsafe_allow_html=True)
+        st.sidebar.markdown('<div style="font-size:0.6rem;font-weight:700;text-transform:uppercase;letter-spacing:0.12em;color:#64748b;margin-bottom:8px;">Analysis Mode</div>', unsafe_allow_html=True)
         view = st.sidebar.radio(
             "View",
-            ["Review-Level NLP Analysis", "Station-Level Overview"],
+            ["Customer Review Analysis", "Station-Level Overview"],
             label_visibility="collapsed",
         )
-        if view == "Review-Level NLP Analysis":
+        if view == "Customer Review Analysis":
             df_raw = load_mumbai_nlp()
             if df_raw is None or df_raw.empty:
                 st.sidebar.error("No scraped data. Run:\n```python scrape_mumbai_reviews.py```")
             else:
                 st.sidebar.markdown(f"""
-                <div style="background:#1e293b;border-radius:10px;padding:12px 14px;margin-top:8px;">
-                    <div style="font-size:0.65rem;color:#64748b;text-transform:uppercase;letter-spacing:0.08em;">Dataset</div>
-                    <div style="font-size:1.1rem;font-weight:800;color:#f1f5f9;margin-top:2px;">{len(df_raw):,}</div>
-                    <div style="font-size:0.72rem;color:#94a3b8;">Real Google Maps Reviews</div>
-                    <div style="margin-top:8px;font-size:0.65rem;color:#64748b;text-transform:uppercase;letter-spacing:0.08em;">Stations</div>
-                    <div style="font-size:1.1rem;font-weight:800;color:#f1f5f9;">{df_raw['station_name'].nunique()}</div>
-                    <div style="font-size:0.72rem;color:#94a3b8;">Petrol Pumps Covered</div>
+                <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:12px 14px;margin-top:8px;">
+                    <div style="font-size:0.6rem;color:#64748b;text-transform:uppercase;letter-spacing:0.08em;font-weight:700;">Customer Reviews</div>
+                    <div style="font-size:1.2rem;font-weight:800;color:#1e40af;margin-top:2px;">{len(df_raw):,}</div>
+                    <div style="font-size:0.71rem;color:#64748b;margin-bottom:10px;">Verified Google Maps reviews</div>
+                    <div style="font-size:0.6rem;color:#64748b;text-transform:uppercase;letter-spacing:0.08em;font-weight:700;">Stations Covered</div>
+                    <div style="font-size:1.2rem;font-weight:800;color:#1e40af;margin-top:2px;">{df_raw['station_name'].nunique()}</div>
+                    <div style="font-size:0.71rem;color:#64748b;">Petrol pump locations</div>
                 </div>
                 """, unsafe_allow_html=True)
                 nlp_mode = True
         else:
             df_raw = load_default_mumbai()
             st.sidebar.markdown(f"""
-            <div style="background:#1e293b;border-radius:10px;padding:12px 14px;margin-top:8px;">
-                <div style="font-size:1.1rem;font-weight:800;color:#f1f5f9;">{len(df_raw):,}</div>
-                <div style="font-size:0.72rem;color:#94a3b8;">Stations Loaded</div>
+            <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:12px 14px;margin-top:8px;">
+                <div style="font-size:0.6rem;color:#64748b;text-transform:uppercase;letter-spacing:0.08em;font-weight:700;">Total Stations</div>
+                <div style="font-size:1.2rem;font-weight:800;color:#1e40af;margin-top:2px;">{len(df_raw):,}</div>
+                <div style="font-size:0.71rem;color:#64748b;">Mumbai petrol pump network</div>
             </div>
             """, unsafe_allow_html=True)
 
     elif mode == "Pune Retail Outlets":
         df_raw = load_default_pune()
         st.sidebar.markdown(f"""
-        <div style="background:#1e293b;border-radius:10px;padding:12px 14px;margin-top:8px;">
-            <div style="font-size:1.1rem;font-weight:800;color:#f1f5f9;">{len(df_raw):,}</div>
-            <div style="font-size:0.72rem;color:#94a3b8;">Reviews Loaded</div>
+        <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:12px 14px;margin-top:8px;">
+            <div style="font-size:0.6rem;color:#64748b;text-transform:uppercase;letter-spacing:0.08em;font-weight:700;">Customer Reviews</div>
+            <div style="font-size:1.2rem;font-weight:800;color:#1e40af;margin-top:2px;">{len(df_raw):,}</div>
+            <div style="font-size:0.71rem;color:#64748b;">Pune retail outlet reviews</div>
         </div>
         """, unsafe_allow_html=True)
 
@@ -414,7 +417,7 @@ def sidebar():
     # ── Sidebar filters (NLP mode) ──
     if nlp_mode and df_raw is not None:
         st.sidebar.markdown("---")
-        st.sidebar.markdown('<div style="font-size:0.6rem;font-weight:700;text-transform:uppercase;letter-spacing:0.12em;color:#475569;margin-bottom:8px;">Filters</div>', unsafe_allow_html=True)
+        st.sidebar.markdown('<div style="font-size:0.6rem;font-weight:700;text-transform:uppercase;letter-spacing:0.12em;color:#64748b;margin-bottom:8px;">Refine Results</div>', unsafe_allow_html=True)
 
         brands = sorted(df_raw["brand"].dropna().unique())
         sel_brands = st.sidebar.multiselect("Brand", brands, default=brands)
@@ -433,7 +436,7 @@ def sidebar():
         ]
 
     st.sidebar.markdown("---")
-    st.sidebar.markdown('<div style="font-size:0.6rem;color:#334155;text-align:center;padding-top:0.5rem;">Data scraped from Google Maps · BERT NLP</div>', unsafe_allow_html=True)
+    st.sidebar.markdown('<div style="font-size:0.6rem;color:#94a3b8;text-align:center;padding-top:0.5rem;line-height:1.6;">Customer data sourced from Google Maps<br>Sentiment analysis powered by AI</div>', unsafe_allow_html=True)
 
     return df_raw
 
@@ -466,7 +469,7 @@ def _landing():
         <div style="font-size:3rem;">⛽</div>
         <div style="font-size:1.8rem;font-weight:800;color:#0f172a;margin-top:1rem;">Mumbai Petrol Pump Intelligence</div>
         <div style="font-size:1rem;color:#64748b;margin-top:0.5rem;max-width:480px;margin-left:auto;margin-right:auto;">
-            Real Google Maps reviews · BERT sentiment analysis · 17 issue categories · Brand & zone benchmarking
+            Verified customer reviews · Automated sentiment classification · 17 issue categories · Brand & geographic analysis
         </div>
     </div>
     """, unsafe_allow_html=True)
@@ -498,7 +501,7 @@ def dashboard_mumbai_nlp(df):
                     <div style="font-size:1.2rem;font-weight:800;color:#0f172a;letter-spacing:-0.025em;">
                         Mumbai Petrol Pump Intelligence</div>
                     <div style="font-size:0.8rem;color:#64748b;margin-top:2px;">
-                        Real Google Maps reviews &nbsp;·&nbsp; BERT multilingual NLP &nbsp;·&nbsp;
+                        Real Google Maps reviews &nbsp;·&nbsp; AI Sentiment Analysis &nbsp;·&nbsp;
                         17 issue categories &nbsp;·&nbsp; 5 zones
                     </div>
                 </div>
@@ -526,14 +529,14 @@ def dashboard_mumbai_nlp(df):
     """, unsafe_allow_html=True)
 
     tabs = st.tabs([
-        "📊  Overview",
-        "🔍  Issue Analysis",
-        "🏷️  Brand Performance",
-        "🗺️  Zone Intelligence",
-        "🔑  Topics & Keywords",
-        "⚡  Priority Queue",
-        "🏪  Station Deep-Dive",
-        "📋  Data Export",
+        "Overview",
+        "Issue Analysis",
+        "Brand Performance",
+        "Zone Intelligence",
+        "Text Analysis",
+        "Priority Queue",
+        "Station Report",
+        "Data Export",
     ])
 
     with tabs[0]: tab_overview(df)
@@ -558,17 +561,17 @@ def tab_overview(df):
     top_issue  = df[df["sentiment"] == "Negative"]["issue_category"].value_counts()
     top_zone   = df[df["sentiment"] == "Negative"]["zone"].value_counts().index[0] if "zone" in df.columns else "—"
 
-    cL("Key Metrics")
+    cL("Performance Summary")
     c1, c2, c3, c4, c5, c6 = st.columns(6)
-    c1.metric("Total Reviews",   f"{total:,}")
+    c1.metric("Total Reviews Analysed", f"{total:,}")
     c2.metric("Positive",        f"{pos:,}",  f"{pos/total*100:.1f}% of total")
     c3.metric("Neutral",         f"{neu:,}",  f"{neu/total*100:.1f}% of total")
     c4.metric("Negative",        f"{neg:,}",  f"{neg/total*100:.1f}% of total")
-    c5.metric("Avg BERT Stars",  f"{avg_stars:.2f} / 5")
+    c5.metric("Avg Predicted Rating",  f"{avg_stars:.2f} / 5")
     c6.metric("Model Confidence",f"{avg_conf:.1f}%")
 
     # ── Sentiment donut + star bar ──
-    cL("Sentiment Breakdown")
+    cL("Sentiment Distribution")
     col1, col2 = st.columns(2)
     with col1:
         counts = df["sentiment"].value_counts().reset_index()
@@ -589,7 +592,7 @@ def tab_overview(df):
             fig2 = px.bar(star_sent, x="bert_star", y="count",
                           color="sentiment", color_discrete_map=SENTIMENT_COLORS,
                           barmode="stack",
-                          labels={"bert_star": "BERT Predicted Stars", "count": "Reviews", "sentiment": "Sentiment"})
+                          labels={"bert_star": "Predicted Rating", "count": "Reviews", "sentiment": "Sentiment"})
             fig2.update_layout(**plot_layout(
                 height=320,
                 legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0),
@@ -597,7 +600,7 @@ def tab_overview(df):
             chart_card(fig2)
 
     # ── Issue breakdown ──
-    cL("Issue Category Distribution")
+    cL("Customer Complaint Categories")
     ic_counts = df["issue_category"].value_counts().reset_index()
     ic_counts.columns = ["Issue", "Count"]
     ic_counts["Color"] = ic_counts["Issue"].map(ISSUE_COLORS).fillna("#94a3b8")
@@ -615,7 +618,7 @@ def tab_overview(df):
     chart_card(fig3)
 
     # ── Top keywords ──
-    cL("Top Keywords by Sentiment")
+    cL("Frequently Mentioned Terms by Sentiment")
     kc1, kc2, kc3 = st.columns(3)
     for col, sentiment, color in [
         (kc1, "Positive", POS), (kc2, "Neutral", NEU), (kc3, "Negative", NEG)
@@ -637,7 +640,7 @@ def tab_overview(df):
                 chart_card(fig_k)
 
     # ── Auto insights ──
-    cL("Automated Insights")
+    cL("Operational Observations")
     neg_pct = neg / total * 100
 
     if neg_pct > 45:
@@ -682,7 +685,7 @@ def tab_issues(df):
     total = len(df)
     neg   = (df["sentiment"] == "Negative").sum()
 
-    cL("Issue × Sentiment Breakdown")
+    cL("Issue Categories by Sentiment")
     issue_sent = df.groupby(["issue_category", "sentiment"]).size().reset_index(name="count")
     issue_order = df["issue_category"].value_counts().index.tolist()
     fig = px.bar(
@@ -701,7 +704,7 @@ def tab_issues(df):
     col1, col2 = st.columns(2)
 
     with col1:
-        cL("Negativity Rate per Issue")
+        cL("Complaint Rate by Issue Category")
         neg_rate = (
             df.groupby("issue_category")
             .apply(lambda x: (x["sentiment"] == "Negative").mean() * 100)
@@ -719,7 +722,7 @@ def tab_issues(df):
         chart_card(fig2)
 
     with col2:
-        cL("Issue Share (Negative Reviews Only)")
+        cL("Distribution of Negative Feedback")
         neg_df = df[df["sentiment"] == "Negative"]["issue_category"].value_counts().reset_index()
         neg_df.columns = ["Issue", "Count"]
         fig3 = px.pie(
@@ -735,7 +738,7 @@ def tab_issues(df):
                                           margin=dict(t=20,b=20,l=20,r=20)))
         chart_card(fig3)
 
-    cL("Browse Reviews by Issue")
+    cL("Review Browser")
     sel_issue = st.selectbox("Select Issue Category", sorted(df["issue_category"].unique()))
     sel_sent  = st.radio("Sentiment", ["All", "Negative", "Positive", "Neutral"], horizontal=True)
     sub = df[df["issue_category"] == sel_issue]
@@ -760,7 +763,7 @@ def tab_brands(df):
     sc = brand_scorecard(df, sentiment_col="sentiment", brand_col="brand",
                           rating_col="station_rating", review_count_col="station_reviews")
 
-    cL("Brand Sentiment Comparison")
+    cL("Brand-Level Sentiment Performance")
     col1, col2 = st.columns(2)
 
     with col1:
@@ -775,7 +778,7 @@ def tab_brands(df):
         fig2 = px.bar(
             sc, x="Brand", y="Positive %", color="Brand",
             text=sc["Positive %"].apply(lambda x: f"{x:.1f}%"),
-            labels={"Positive %": "NLP-Positive Reviews (%)","Brand":""},
+            labels={"Positive %": "Positive Sentiment (%)","Brand":""},
             color_discrete_sequence=["#1e40af","#0891b2","#059669","#7c3aed","#d97706","#dc2626"],
         )
         fig2.update_traces(textposition="outside", textfont_size=11)
@@ -788,7 +791,7 @@ def tab_brands(df):
             sc.sort_values("Negative %", ascending=False),
             x="Brand", y="Negative %", color="Brand",
             text=sc.sort_values("Negative %", ascending=False)["Negative %"].apply(lambda x: f"{x:.1f}%"),
-            labels={"Negative %": "NLP-Negative Reviews (%)","Brand":""},
+            labels={"Negative %": "Negative Sentiment (%)","Brand":""},
             color_discrete_sequence=["#dc2626","#ea580c","#d97706","#0891b2","#7c3aed","#059669"],
         )
         fig3.update_traces(textposition="outside", textfont_size=11)
@@ -796,7 +799,7 @@ def tab_brands(df):
         fig3.update_layout(**plot_layout(height=340, showlegend=False))
         chart_card(fig3)
 
-    cL("Google Rating vs NLP Sentiment")
+    cL("Google Rating vs Customer Sentiment Score")
     if "Avg Station Rating" in sc.columns:
         sc_plot = sc.dropna(subset=["Avg Station Rating"])
         fig4 = px.scatter(
@@ -804,16 +807,16 @@ def tab_brands(df):
             size="Reviews", color="Brand",
             hover_data=["Stations", "Negative %", "Reviews"],
             labels={"Avg Station Rating": "Google Avg Rating (1–5)",
-                    "Positive %": "NLP Positive (%)"},
+                    "Positive %": "Positive Sentiment (%)"},
             size_max=55,
         )
         fig4.add_hline(y=50, line_dash="dash", line_color="#e2e8f0",
                        annotation_text="50% positive threshold")
         fig4.update_layout(**plot_layout(height=400))
         chart_card(fig4)
-        st.caption("Bubble size = number of reviews. Brands above 50% positive line are performing well on NLP sentiment.")
+        st.caption("Bubble size = number of reviews. Brands positioned above the 50% threshold are performing well on cLP sentiment.")
 
-    cL("Brand Scorecard")
+    cL("Brand Performance Scorecard")
     display_sc = sc.copy()
     styled = (
         display_sc.style
@@ -825,7 +828,7 @@ def tab_brands(df):
     )
     st.dataframe(styled, use_container_width=True)
 
-    cL("Issue Distribution by Brand")
+    cL("Issue Breakdown by Oil Company")
     brand_issue = df.groupby(["brand", "issue_category"]).size().reset_index(name="count")
     fig5 = px.bar(
         brand_issue, x="brand", y="count", color="issue_category",
@@ -840,12 +843,12 @@ def tab_brands(df):
     ))
     chart_card(fig5)
 
-    cL("Brand Insights")
+    cL("Brand-Level Observations")
     if not sc.empty:
         best  = sc.iloc[0]
         worst = sc.iloc[-1]
         ic(INS["green"], f"<b>Best Performing Brand: {best['Brand']}</b> — "
-           f"{best['Positive %']:.1f}% positive NLP sentiment across {int(best['Stations'])} stations "
+           f"{best['Positive %']:.1f}% positive customer sentiment across {int(best['Stations'])} stations "
            f"({int(best['Reviews'])} reviews). Avg Google rating: {best['Avg Station Rating']:.2f}★")
         ic(INS["red"], f"<b>Most Improvement Needed: {worst['Brand']}</b> — "
            f"{worst['Negative %']:.1f}% of reviews are negative. "
@@ -858,7 +861,7 @@ def tab_brands(df):
 # ── Tab 3: Zone Intelligence ───────────────────────────────────────────────────
 
 def tab_zones(df):
-    cL("Zone Performance Overview")
+    cL("Geographic Zone Performance")
     zone_stats = (
         df.groupby("zone")
         .agg(
@@ -907,7 +910,7 @@ def tab_zones(df):
         ))
         chart_card(fig2)
 
-    cL("Zone × Issue Heatmap")
+    cL("Issue Concentration by Zone")
     zone_issue = df.groupby(["zone", "issue_category"]).size().unstack(fill_value=0)
     fig3 = px.imshow(
         zone_issue, color_continuous_scale="Blues", aspect="auto",
@@ -916,9 +919,9 @@ def tab_zones(df):
     fig3.update_xaxes(tickangle=35)
     fig3.update_layout(**plot_layout(height=340, margin=dict(t=20, b=90, l=130, r=20)))
     chart_card(fig3)
-    st.caption("Darker cells indicate higher review volume for that issue in that zone. Hotspots require targeted interventions.")
+    st.caption("Darker cells indicate a higher concentration of reviews mentioning a given issue in that geographic zone. Areas with dense colouring represent operational hotspots requiring targeted management intervention.")
 
-    cL("Zone Summary Table")
+    cL("Zone-Level Performance Summary")
     display_zone = zone_stats.copy()
     display_zone.columns = ["Zone", "Reviews", "Positive", "Negative", "Neutral",
                               "Avg Rating", "Stations", "Positive %", "Negative %"]
@@ -931,7 +934,7 @@ def tab_zones(df):
     )
     st.dataframe(styled, use_container_width=True)
 
-    cL("Zone Insights")
+    cL("Zone-Level Observations")
     worst_zone = zone_stats.iloc[0]
     best_zone  = zone_stats.iloc[-1]
     ic(INS["red"], f"<b>Worst Zone: {worst_zone['zone']}</b> — "
@@ -957,7 +960,7 @@ def _cached_lda(texts_tuple, n_topics=8):
 
 
 def tab_topics(df):
-    cL("LDA Topic Modeling — Unsupervised Theme Discovery")
+    cL("Thematic Analysis — Key Topics in Customer Feedback")
     st.caption(
         "Latent Dirichlet Allocation (LDA) discovers hidden themes in review text without pre-defined labels. "
         "Each review is assigned to its most probable topic based on word co-occurrence patterns."
@@ -973,7 +976,7 @@ def tab_topics(df):
 
     col1, col2 = st.columns([3, 2])
     with col1:
-        cL("Topic Distribution")
+        cL("Topic Frequency Distribution")
         tc = pd.Series(dominant).value_counts().reset_index()
         tc.columns = ["Topic", "Reviews"]
         fig = px.bar(
@@ -989,7 +992,7 @@ def tab_topics(df):
         chart_card(fig)
 
     with col2:
-        cL("Topic Top Words")
+        cL("Representative Terms")
         sel_t = st.selectbox("Select topic", [labels[i] for i, _ in topic_words])
         for i, words in topic_words:
             if labels[i] == sel_t:
@@ -1001,14 +1004,14 @@ def tab_topics(df):
                 st.markdown('</div>', unsafe_allow_html=True)
                 break
 
-    cL("Topic × Sentiment Heatmap")
+    cL("Topic Distribution by Sentiment")
     pivot = df2.groupby(["topic", "sentiment"]).size().unstack(fill_value=0)
     fig2 = px.imshow(pivot, color_continuous_scale="Blues", aspect="auto",
                      labels={"x":"Sentiment","y":"Topic","color":"Reviews"})
     fig2.update_layout(**plot_layout(height=380, margin=dict(t=20,b=20,l=220,r=20)))
     chart_card(fig2)
 
-    cL("N-gram Analysis — Most Common Phrases")
+    cL("Frequently Occurring Phrases")
     col3, col4 = st.columns(2)
     neg_texts = df[df["sentiment"] == "Negative"]["text"].tolist()
     pos_texts = df[df["sentiment"] == "Positive"]["text"].tolist()
@@ -1041,7 +1044,7 @@ def tab_topics(df):
 # ── Tab 5: Priority Queue ──────────────────────────────────────────────────────
 
 def tab_priority(df):
-    cL("Station Intervention Priority Queue")
+    cL("Station Intervention Priority")
     st.caption(
         "**Urgency Score** = (Negative %) × log(Google Review Count) × (5 − Avg Rating). "
         "Higher score = more evidence, lower rating, and higher negative rate → needs urgent attention."
@@ -1050,7 +1053,7 @@ def tab_priority(df):
     pq = build_priority_queue(df, sentiment_col="sentiment",
                                rating_col="station_rating", review_count_col="station_reviews")
 
-    cL("Top 20 Stations — Highest Urgency")
+    cL("Stations Requiring Immediate Attention")
     top20 = pq.head(20).reset_index(drop=True)
     top20.index += 1  # 1-based rank
 
@@ -1069,7 +1072,7 @@ def tab_priority(df):
 
     col1, col2 = st.columns(2)
     with col1:
-        cL("Zone × Brand Urgency Heatmap")
+        cL("Urgency Distribution by Zone and Brand")
         heat = pq.groupby(["Zone","Brand"])["Urgency Score"].mean().unstack(fill_value=0)
         fig2 = px.imshow(heat, color_continuous_scale="OrRd", aspect="auto",
                          labels={"x":"Brand","y":"Zone","color":"Avg Urgency"})
@@ -1077,14 +1080,14 @@ def tab_priority(df):
         chart_card(fig2)
 
     with col2:
-        cL("Negative % Distribution")
+        cL("Distribution of Negative Feedback Rates")
         fig3 = px.histogram(pq, x="Negative %", nbins=15, color_discrete_sequence=[NEG])
         fig3.add_vline(x=pq["Negative %"].mean(), line_dash="dash",
                        line_color=GREY, annotation_text=f"Avg {pq['Negative %'].mean():.1f}%")
         fig3.update_layout(**plot_layout(height=300, showlegend=False))
         chart_card(fig3)
 
-    cL("Full Priority Queue")
+    cL("Complete Priority Intervention List")
     styled_pq = (
         pq.style
             .background_gradient(subset=["Urgency Score"], cmap="Reds")
@@ -1099,7 +1102,7 @@ def tab_priority(df):
     st.download_button("⬇  Download Priority Queue CSV", data=csv,
                        file_name="mumbai_priority_queue.csv", mime="text/csv")
 
-    cL("Priority Insights")
+    cL("Priority Observations")
     if not pq.empty:
         top = pq.iloc[0]
         ic(INS["red"], f"<b>Highest Priority: {top['Station']}</b> "
@@ -1119,7 +1122,7 @@ def tab_priority(df):
 # ── Tab 6: Station Deep-Dive ───────────────────────────────────────────────────
 
 def tab_station_dive(df):
-    cL("Per-Station NLP Analysis")
+    cL("Individual Station Analysis")
     stations = sorted(df["station_name"].dropna().unique())
     sel = st.selectbox("Select a station", stations)
     sdf = df[df["station_name"] == sel].copy()
@@ -1176,11 +1179,11 @@ def tab_station_dive(df):
                                           margin=dict(t=16,b=16,l=16,r=16)))
         chart_card(fig2)
 
-    cL("All Reviews for This Station")
+    cL("Customer Reviews — Selected Station")
     display_cols = [c for c in ["author_name","rating","sentiment","confidence","issue_category","text"]
                     if c in sdf.columns]
     rename = {"author_name":"Reviewer","rating":"Stars","sentiment":"Sentiment",
-               "confidence":"Confidence","issue_category":"Issue","text":"Review Text"}
+               "confidence":"Confidence Score","issue_category":"Issue Category","text":"Review Text"}
     st.dataframe(sdf[display_cols].rename(columns=rename).reset_index(drop=True),
                  use_container_width=True, height=380)
 
@@ -1188,7 +1191,7 @@ def tab_station_dive(df):
 # ── Tab 7: Data Export ─────────────────────────────────────────────────────────
 
 def tab_export(df):
-    cL("Export Sentiment Analysis Results")
+    cL("Download Analysis Report")
 
     total = len(df)
     pos   = (df["sentiment"] == "Positive").sum()
@@ -1219,7 +1222,7 @@ def tab_export(df):
     </div>
     """, unsafe_allow_html=True)
 
-    cL("Full Dataset")
+    cL("Complete Review Dataset")
     export_cols = [c for c in [
         "station_name","station_address","brand","category","zone",
         "lat","lng","station_rating","station_reviews",
@@ -1233,8 +1236,8 @@ def tab_export(df):
         "category":"Category","zone":"Zone","lat":"Latitude","lng":"Longitude",
         "station_rating":"Google Avg Rating","station_reviews":"Google Review Count",
         "author_name":"Reviewer","rating":"Review Stars","text":"Review Text",
-        "date_relative":"Date (Relative)","sentiment":"BERT Sentiment",
-        "bert_star":"BERT Predicted Stars","confidence":"Model Confidence",
+        "date_relative":"Date (Relative)","sentiment":"Sentiment Classification",
+        "bert_star":"Predicted Rating","confidence":"Model Confidence",
         "issue_category":"Primary Issue","issue_tags":"All Issues",
         "quality_score":"Quality Score","source":"Data Source","review_id":"Review ID",
     }
@@ -1369,14 +1372,14 @@ def _st_zones(df):
             .sort_values("Avg_Rating",ascending=False).reset_index())
     col1,col2 = st.columns(2)
     with col1:
-        cL("Avg Rating by Zone")
+        cL("Average Customer Rating by Zone")
         fig = px.bar(zs.sort_values("Avg_Rating"), x="Avg_Rating", y="zone", orientation="h",
                      color="Avg_Rating", color_continuous_scale="RdYlGn", range_color=[2.5,4.5],
                      labels={"Avg_Rating":"Avg Rating","zone":""})
         fig.update_layout(**plot_layout(height=300,showlegend=False,coloraxis_showscale=False))
         chart_card(fig)
     with col2:
-        cL("Sentiment by Zone")
+        cL("Sentiment Breakdown by Zone")
         zs2 = df.groupby(["zone","sentiment"]).size().reset_index(name="count")
         fig2 = px.bar(zs2, x="zone", y="count", color="sentiment",
                       color_discrete_map=SENTIMENT_COLORS, barmode="stack",
@@ -1388,7 +1391,7 @@ def _st_zones(df):
 
 
 def _st_scorecard(df):
-    cL("All Stations — Ranked by Rating")
+    cL("Station Rankings — Sorted by Customer Rating")
     cols = [c for c in ["_title","_rating","_review_count","sentiment","zone","fuel_type","_address"] if c in df.columns]
     rename = {"_title":"Station","_rating":"Avg Rating","_review_count":"Total Reviews",
                "sentiment":"Sentiment","zone":"Zone","fuel_type":"Fuel Type","_address":"Address"}
@@ -1400,7 +1403,7 @@ def _st_scorecard(df):
     if "Avg Rating" in sc.columns: styled = styled.background_gradient(subset=["Avg Rating"],cmap="RdYlGn")
     st.dataframe(styled, use_container_width=True, height=500)
 
-    cL("Bottom 15 — Needs Attention")
+    cL("Lowest-Rated Stations — Priority for Review")
     bottom = sc.tail(15).sort_values("Avg Rating")
     st.dataframe(bottom.style.background_gradient(subset=["Avg Rating"],cmap="Reds").format(fmt),
                  use_container_width=True)
@@ -1415,7 +1418,7 @@ def _st_insights(df):
     neg_pct = neg/total*100
     avg_r = df["_rating"].mean() if "_rating" in df.columns else None
 
-    cL("Automated Insights")
+    cL("Operational Observations")
     if neg_pct > 30:
         ic(INS["red"], f"<b>High Negativity: {neg_pct:.1f}% of stations</b> have avg ratings ≤ 2.5★. City-wide operational review warranted.")
     elif neg_pct > 15:
@@ -1458,7 +1461,7 @@ def dashboard_reviews(df_raw):
     cache_key = str(len(df)) + str(df["_review_text"].iloc[0])
     if st.session_state.get("analyzed_hash") != cache_key:
         texts = tuple(df["_review_text"].fillna("").tolist())
-        with st.spinner("Running BERT sentiment analysis…"):
+        with st.spinner("Running AI-powered sentiment analysis…"):
             results = run_bert(texts)
         df["sentiment"]      = [r["sentiment"]    for r in results]
         df["confidence"]     = [r["confidence"]   for r in results]
@@ -1603,7 +1606,7 @@ def _rv_trends(df):
 
 def _rv_insights(df):
     total=len(df); neg=(df["sentiment"]=="Negative").sum(); neg_pct=neg/total*100
-    cL("Automated Insights")
+    cL("Operational Observations")
     if neg_pct>50: ic(INS["red"],f"<b>High Negativity ({neg_pct:.1f}%)</b> — Immediate attention required.")
     elif neg_pct>30: ic(INS["amber"],f"<b>Moderate Negativity ({neg_pct:.1f}%)</b> — Clear improvement opportunity.")
     else: ic(INS["green"],f"<b>Broadly Positive</b> — Only {neg_pct:.1f}% negative reviews.")
@@ -1615,13 +1618,13 @@ def _rv_insights(df):
     if "_rating" in df.columns:
         mm = ((df["_rating"]>=4)&(df["sentiment"]=="Negative")).sum()
         if mm>0:
-            ic(INS["blue"],f"<b>Rating–Sentiment Mismatch: {mm} reviews</b> carry 4–5 stars yet NLP detects negative sentiment — customers may be leaving courtesy ratings.")
+            ic(INS["blue"],f"<b>Rating–Sentiment Mismatch: {mm} reviews</b> carry 4–5 stars yet the sentiment analysis identifies a negative tone — customers may be leaving courtesy ratings.")
 
 
 def _rv_data(df, df_raw):
     cL("Analysed Reviews")
     dc = [c for c in ["_review_text","_rating","sentiment","bert_star","confidence","issue_category","issue_tags"] if c in df.columns]
-    rn = {"_review_text":"Review","_rating":"Stars","sentiment":"Sentiment","bert_star":"BERT Stars",
+    rn = {"_review_text":"Review","_rating":"Stars","sentiment":"Sentiment","bert_star":"Predicted Rating",
           "confidence":"Confidence","issue_category":"Issue","issue_tags":"All Issues"}
     st.dataframe(df[dc].rename(columns=rn),use_container_width=True,height=440)
     st.download_button("⬇  Download Results CSV",
