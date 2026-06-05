@@ -54,12 +54,13 @@ PUMPS_FILE   = "mumbai_petrol_pumps.xlsx"
 OUT_DIR      = "scraped_reviews"          # per-station JSON cache
 MERGED_CSV   = "mumbai_petrol_reviews.csv"
 
-MAX_REVIEWS_PER_STATION = 30             # cap per station (Google rarely shows >20 anyway)
-SCROLL_PAUSE             = 1.8           # seconds between scroll steps
-MAX_SCROLL_ATTEMPTS      = 15            # give up scrolling after this many empty loops
+MAX_REVIEWS_PER_STATION = 300            # high cap — Google lazily loads ~10 per scroll batch
+SCROLL_PAUSE             = 1.5           # seconds between scroll steps
+MAX_SCROLL_ATTEMPTS      = 60            # 60 scrolls × ~10 reviews = up to ~600 reviews
+NO_NEW_REVIEWS_LIMIT     = 5            # stop scrolling after this many empty scroll rounds
 PAGE_LOAD_TIMEOUT        = 20            # seconds
-ELEMENT_WAIT             = 12           # seconds for element waits
-INTER_STATION_SLEEP      = (3, 6)       # random sleep range between stations
+ELEMENT_WAIT             = 12            # seconds for element waits
+INTER_STATION_SLEEP      = (2, 4)        # random sleep range between stations
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s  %(levelname)s  %(message)s")
 log = logging.getLogger(__name__)
@@ -214,29 +215,83 @@ def get_reviews_scrollable_panel(driver):
     return None
 
 
-def scroll_reviews(driver, max_attempts=MAX_SCROLL_ATTEMPTS):
-    """Scroll the reviews panel to load all reviews."""
-    panel = get_reviews_scrollable_panel(driver)
-    if panel is None:
-        # Scroll the whole page
-        for _ in range(max_attempts):
-            driver.execute_script("window.scrollBy(0, 600);")
-            time.sleep(SCROLL_PAUSE)
-        return
+def count_review_blocks(driver):
+    """Count currently loaded review blocks on the page."""
+    for sel in ["div[data-review-id]", "div.jftiEf"]:
+        try:
+            els = driver.find_elements(By.CSS_SELECTOR, sel)
+            if els:
+                return len(els)
+        except Exception:
+            pass
+    return 0
 
-    prev_height = 0
-    no_change_count = 0
+
+def sort_reviews_by_newest(driver):
+    """Click 'Sort reviews' button → select Newest."""
+    try:
+        btn = driver.find_element(By.CSS_SELECTOR, "button[aria-label='Sort reviews']")
+        driver.execute_script("arguments[0].click();", btn)
+        time.sleep(1.5)
+    except Exception:
+        return False
+
+    # Dropdown appears — look for the Newest option
+    for opt_sel in [
+        "//div[@role='menuitemradio'][contains(.,'Newest')]",
+        "//li[@role='menuitemradio'][contains(.,'Newest')]",
+        "//div[@role='option'][contains(.,'Newest')]",
+        "//li[contains(.,'Newest')]",
+        "div[data-index='1'][role='menuitemradio']",
+    ]:
+        try:
+            opt = (driver.find_element(By.XPATH, opt_sel)
+                   if opt_sel.startswith("//")
+                   else driver.find_element(By.CSS_SELECTOR, opt_sel))
+            driver.execute_script("arguments[0].click();", opt)
+            time.sleep(2.5)
+            return True
+        except Exception:
+            pass
+    return False
+
+
+def scroll_reviews(driver, max_attempts=MAX_SCROLL_ATTEMPTS):
+    """
+    Scroll the reviews panel, stopping when no new reviews appear
+    after NO_NEW_REVIEWS_LIMIT consecutive scroll rounds.
+    """
+    panel = get_reviews_scrollable_panel(driver)
+
+    prev_count = 0
+    no_new_count = 0
+
     for _ in range(max_attempts):
-        driver.execute_script("arguments[0].scrollTop += 800;", panel)
+        if panel:
+            try:
+                driver.execute_script("arguments[0].scrollTop += 1200;", panel)
+            except Exception:
+                driver.execute_script("window.scrollBy(0, 1200);")
+        else:
+            driver.execute_script("window.scrollBy(0, 1200);")
+
         time.sleep(SCROLL_PAUSE)
-        new_height = driver.execute_script("return arguments[0].scrollHeight", panel)
-        if new_height == prev_height:
-            no_change_count += 1
-            if no_change_count >= 3:
+
+        new_count = count_review_blocks(driver)
+        if new_count == prev_count:
+            no_new_count += 1
+            if no_new_count >= NO_NEW_REVIEWS_LIMIT:
                 break
         else:
-            no_change_count = 0
-        prev_height = new_height
+            no_new_count = 0
+        prev_count = new_count
+
+        # Re-acquire panel in case DOM was refreshed
+        if panel:
+            try:
+                panel = get_reviews_scrollable_panel(driver)
+            except Exception:
+                panel = None
 
 
 def expand_review_texts(driver):
@@ -455,14 +510,13 @@ def merge_all(out_dir, merged_csv):
 
 
 
-def _do_scrape_one(drv, title, address, lat, lng, rating, rc, brand, cat, zone):
-    """Scrape one station with the given driver. Returns list of review dicts."""
+def _navigate_to_station(drv, title, address, lat, lng):
+    """Land on the station's Maps place page. Returns True on success."""
     landed = search_station(drv, title, lat, lng)
     if not landed:
         log.warning("  -> Fallback: searching by address")
         query2 = quote(f"{title} {address[:60]}")
-        url2 = f"https://www.google.com/maps/search/{query2}?hl=en"
-        safe_get(drv, url2)
+        safe_get(drv, f"https://www.google.com/maps/search/{query2}?hl=en")
         time.sleep(2)
         handle_consent(drv)
         try:
@@ -472,13 +526,60 @@ def _do_scrape_one(drv, title, address, lat, lng, rating, rc, brand, cat, zone):
                 time.sleep(2.5)
         except Exception:
             pass
+    return "/maps/place/" in drv.current_url or "ludocid" in drv.current_url
 
-    click_reviews_tab(drv)
-    time.sleep(2)
+
+def _collect_reviews(drv, title, address, rating, rc, brand, cat, zone, lat, lng):
+    """Scroll fully, expand all, extract reviews from current view."""
     expand_review_texts(drv)
     scroll_reviews(drv)
-    expand_review_texts(drv)
+    expand_review_texts(drv)  # expand any newly loaded ones
     return extract_reviews_from_page(drv, title, address, rating, rc, brand, cat, zone, lat, lng)
+
+
+def _do_scrape_one(drv, title, address, lat, lng, rating, rc, brand, cat, zone):
+    """
+    Scrape a station twice — first with default (Most Relevant) sort,
+    then switch to Newest sort — and merge unique reviews by review_id.
+    This typically doubles the review yield per station.
+    """
+    _navigate_to_station(drv, title, address, lat, lng)
+    place_url = drv.current_url   # remember so we can reload for second sort
+
+    # ── Pass 1: Most Relevant (default) ───────────────────────────────────────
+    click_reviews_tab(drv)
+    time.sleep(2)
+    reviews_relevant = _collect_reviews(drv, title, address, rating, rc, brand, cat, zone, lat, lng)
+    log.info(f"    [Relevant sort] {len(reviews_relevant)} reviews")
+
+    # ── Pass 2: Newest ────────────────────────────────────────────────────────
+    # Don't reload — scroll the reviews panel back to top, then sort
+    reviews_newest = []
+    try:
+        panel = get_reviews_scrollable_panel(drv)
+        if panel:
+            drv.execute_script("arguments[0].scrollTop = 0;", panel)
+        else:
+            drv.execute_script("window.scrollTo(0,0);")
+        time.sleep(1)
+        sorted_ok = sort_reviews_by_newest(drv)
+        if sorted_ok:
+            reviews_newest = _collect_reviews(drv, title, address, rating, rc, brand, cat, zone, lat, lng)
+            log.info(f"    [Newest sort]   {len(reviews_newest)} reviews")
+        else:
+            log.info(f"    [Newest sort]   sort button not found, skipping second pass")
+    except Exception as e:
+        log.warning(f"    [Newest sort]   failed ({e}), keeping first-pass results only")
+
+    # ── Merge unique reviews ──────────────────────────────────────────────────
+    seen = {r["review_id"] for r in reviews_relevant}
+    combined = list(reviews_relevant)
+    for r in reviews_newest:
+        if r["review_id"] not in seen:
+            combined.append(r)
+            seen.add(r["review_id"])
+
+    return combined
 
 
 def scrape_all(limit=None, resume=True, headless=True, merge_only=False):

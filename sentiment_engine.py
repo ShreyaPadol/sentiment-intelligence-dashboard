@@ -6,59 +6,103 @@ from transformers import AutoTokenizer, AutoModelForSequenceClassification
 # issue categories for petrol pump / retail outlet reviews
 # keywords are intentionally simple - weighted scoring works well here
 ISSUE_CATEGORIES = {
-    "Cleanliness": [
-        "dirty", "clean", "hygiene", "hygienic", "garbage", "trash", "toilet",
-        "washroom", "restroom", "filthy", "messy", "waste", "stink", "smell",
-        "untidy", "neat", "dust", "sweep",
+    # ── Fraud & Meter ────────────────────────────────────────────────────────
+    "Meter Tampering & Fraud": [
+        "scam", "fraud", "cheat", "cheating", "manipulat", "meter", "zero",
+        "reset", "display", "ripoff", "rip off", "theft", "stealing", "dishonest",
+        "deceiv", "trick", "fake reading", "tamper", "corrupt",
     ],
-    "Staff Behaviour": [
-        "staff", "attendant", "employee", "rude", "polite", "behaviour", "behavior",
-        "service", "worker", "helper", "friendly", "arrogant", "helpful", "lazy",
-        "aahe", "attitude", "personnel", "operator",
+    # ── Fuel Quantity ────────────────────────────────────────────────────────
+    "Fuel Short Filling": [
+        "short fill", "less fuel", "less petrol", "less diesel", "quantity",
+        "litre", "liter", "half fill", "full tank", "not full", "filled less",
+        "wrong quantity", "less quantity", "gave less",
     ],
-    "Payment Issue": [
-        "payment", "pay", "upi", "cash", "card", "transaction", "digital",
-        "paytm", "gpay", "phonepay", "amount", "money", "rupee", "inr",
-        "change", "balance", "charged", "overcharge", "extra charge",
-    ],
-    "Waiting Time": [
-        "wait", "waiting", "queue", "long", "slow", "delay", "late",
-        "hour", "minute", "rush", "crowd", "busy", "fast", "quick",
-    ],
+    # ── Fuel Quality ────────────────────────────────────────────────────────
     "Fuel Quality": [
-        "fuel", "petrol", "diesel", "quality", "adulterat", "pure", "impure",
-        "quantity", "litre", "liter", "mileage", "octane",
+        "adulterat", "mileage", "quality", "impure", "pure", "engine",
+        "knock", "fuel quality", "petrol quality", "diesel quality", "bad petrol",
+        "contaminated", "water in fuel", "octane",
     ],
-    "Billing or Trust Issue": [
-        "bill", "billing", "scam", "fraud", "cheat", "trust", "honest",
-        "dishonest", "receipt", "fake", "wrong", "incorrect", "overcharg",
-        "manipulat", "deceiv", "ripoff", "theft",
+    # ── Staff ────────────────────────────────────────────────────────────────
+    "Staff Behaviour": [
+        "rude", "arrogant", "misbehav", "impolite", "abusive", "foul language",
+        "aggressive", "attitude", "unprofessional", "yelling", "shouting",
+        "disrespect", "ignorant", "staff", "attendant", "employee", "worker",
     ],
+    "Staff Helpfulness": [
+        "helpful", "polite", "friendly", "courteous", "cooperative", "kind",
+        "professional", "efficient", "good service", "great service",
+        "nice staff", "good staff", "excellent staff",
+    ],
+    # ── Billing & Payment ────────────────────────────────────────────────────
+    "Billing Issue": [
+        "bill", "billing", "receipt", "invoice", "overcharg", "extra charge",
+        "wrong bill", "incorrect amount", "charged more", "no receipt",
+        "overpriced", "wrong amount",
+    ],
+    "Payment Methods": [
+        "upi", "gpay", "phonepe", "paytm", "google pay", "card", "pos",
+        "swipe", "digital payment", "online payment", "cash only",
+        "no upi", "terminal", "machine not working", "payment failed",
+    ],
+    # ── Waiting & Queue ──────────────────────────────────────────────────────
+    "Waiting Time & Queue": [
+        "wait", "waiting", "queue", "long queue", "slow", "delay",
+        "hour", "minute", "rush", "crowd", "crowded", "busy",
+        "long line", "takes long", "no management",
+    ],
+    # ── CNG ─────────────────────────────────────────────────────────────────
+    "CNG Availability": [
+        "cng", "compressed natural gas", "no cng", "cng not available",
+        "cng unavailable", "cng pressure", "compressor", "cng station",
+        "cng closed", "cng down", "cng full",
+    ],
+    # ── Air, Tyre & Nitrogen ─────────────────────────────────────────────────
+    "Air, Tyre & Nitrogen": [
+        "air", "tyre", "tire", "nitrogen", "puncture", "inflation",
+        "air pump", "tyre pressure", "air check", "free air",
+        "nitrogen filling", "tyre repair",
+    ],
+    # ── Cleanliness ──────────────────────────────────────────────────────────
+    "Cleanliness & Hygiene": [
+        "dirty", "clean", "hygiene", "hygienic", "garbage", "trash", "toilet",
+        "washroom", "restroom", "filthy", "messy", "stink", "smell",
+        "untidy", "neat", "sweep", "unhygienic",
+    ],
+    # ── Safety ───────────────────────────────────────────────────────────────
     "Safety Concern": [
         "safe", "safety", "fire", "accident", "risk", "danger", "hazard",
-        "security", "unsafe", "leakage", "spill", "explosion",
+        "unsafe", "leakage", "spill", "explosion", "smoking near pump",
+        "no safety", "fire hazard",
     ],
+    # ── Facility Maintenance ─────────────────────────────────────────────────
     "Facility Maintenance": [
-        "broken", "repair", "maintain", "maintenance", "damage", "out of order",
-        "not working", "machine", "pump", "nozzle", "equipment", "fix",
+        "broken", "repair", "maintenance", "damage", "out of order",
+        "not working", "nozzle", "equipment", "fix", "defunct",
+        "needs repair", "old machine",
     ],
-    "Customer Amenities": [
-        "water", "drinking", "food", "cafe", "seating", "rest", "toilet",
-        "parking", "atm", "air", "tyre", "inflation", "facility", "amenity",
-        "convenience", "shop",
+    # ── Operating Hours ──────────────────────────────────────────────────────
+    "Operating Hours": [
+        "closed", "open", "timing", "hours", "24 hour", "24/7", "night",
+        "midnight", "early morning", "late night", "not open",
+        "closed at night", "opening time",
     ],
-    "Traffic or Queue Management": [
+    # ── Amenities & ATM ──────────────────────────────────────────────────────
+    "Amenities & ATM": [
+        "atm", "water", "drinking water", "seating", "rest area", "food",
+        "cafe", "parking", "waiting area", "shade", "canteen",
+    ],
+    # ── Traffic & Access ─────────────────────────────────────────────────────
+    "Traffic & Accessibility": [
         "traffic", "lane", "entry", "exit", "congestion", "block",
-        "path", "route", "road",
+        "road", "location", "accessible", "difficult to find", "signage",
+        "narrow", "no space", "can't enter", "visibility",
     ],
-    "Accessibility": [
-        "accessible", "accessibility", "wheelchair", "disable", "disabled",
-        "location", "reach", "distance", "signage", "visibility",
-        "difficult to find", "far",
-    ],
-    "CNG Availability": [
-        "cng", "compressed natural gas", "not available", "unavailable",
-        "no cng", "cng station", "cng pump", "connection",
+    # ── Pricing ──────────────────────────────────────────────────────────────
+    "Pricing": [
+        "price", "rate", "costly", "expensive", "cheap", "cost",
+        "fuel price", "high price", "petrol rate", "diesel rate",
     ],
 }
 
