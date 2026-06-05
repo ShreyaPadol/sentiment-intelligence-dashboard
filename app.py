@@ -379,7 +379,7 @@ def sidebar():
                     <div style="font-size:1.2rem;font-weight:800;color:#1e40af;margin-top:2px;">{len(df_raw):,}</div>
                     <div style="font-size:0.71rem;color:#64748b;margin-bottom:10px;">Verified Google Maps reviews</div>
                     <div style="font-size:0.6rem;color:#64748b;text-transform:uppercase;letter-spacing:0.08em;font-weight:700;">Stations Covered</div>
-                    <div style="font-size:1.2rem;font-weight:800;color:#1e40af;margin-top:2px;">{df_raw['station_name'].nunique()}</div>
+                    <div style="font-size:1.2rem;font-weight:800;color:#1e40af;margin-top:2px;">{df_raw.groupby(['lat','lng']).ngroups if 'lat' in df_raw.columns and 'lng' in df_raw.columns else df_raw['station_name'].nunique()}</div>
                     <div style="font-size:0.71rem;color:#64748b;">Petrol pump locations</div>
                 </div>
                 """, unsafe_allow_html=True)
@@ -484,7 +484,7 @@ def dashboard_mumbai_nlp(df):
     pos     = (df["sentiment"] == "Positive").sum()
     neg     = (df["sentiment"] == "Negative").sum()
     neu     = (df["sentiment"] == "Neutral").sum()
-    stations = df["station_name"].nunique()
+    stations = df.groupby(["lat","lng"]).ngroups if "lat" in df.columns and "lng" in df.columns else df["station_name"].nunique()
     avg_conf = df["confidence"].mean() * 100
 
     # ── Page header ──
@@ -870,7 +870,7 @@ def tab_zones(df):
             Negative   =("sentiment", lambda x: (x == "Negative").sum()),
             Neutral    =("sentiment", lambda x: (x == "Neutral").sum()),
             Avg_Rating =("station_rating", "mean"),
-            Stations   =("station_name", "nunique"),
+            Stations   =("station_address", "nunique"),
         )
         .assign(
             Pos_Pct=lambda x: x["Positive"] / x["Reviews"] * 100,
