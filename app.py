@@ -79,7 +79,20 @@ STOPWORDS = {
     "there","that","very","so","my","we","i","its","here","get","got","also",
     "just","no","or","as","do","did","been","all","one","if","up","out","about",
     "than","more","when","will","can","good","place","nice","would","like",
-    "really","come","petrol","pump","station","fuel","filling","Mumbai","pump",
+    "really","come","petrol","pump","station","fuel","filling","mumbai","pump",
+    # pronouns & filler
+    "you","your","yours","he","she","her","him","his","them","us","our","me",
+    "they","their","we","who","whom","what","which","where","how","why","when",
+    "this","these","those","then","than","even","said","told","went","came",
+    "going","saying","asked","told","made","take","taken","took","give","given",
+    "gave","put","use","used","using","want","wanted","need","needed","let",
+    "via","per","too","yet","off","own","new","old","big","small","first","last",
+    "much","many","some","any","few","every","each","both","either","other",
+    "same","well","still","back","over","around","re","ll","ve","don","doesn",
+    # domain-generic noise
+    "petrol","pump","station","fuel","filling","oil","gas","mumbai","india",
+    "please","always","never","today","yesterday","now","time","ago","visit",
+    "visited","come","went","came","day","week","month","year","times",
 }
 
 # ── Global CSS ─────────────────────────────────────────────────────────────────
@@ -209,6 +222,16 @@ tbody tr:hover { background: #f8fafc !important; }
 [data-testid="stSelectbox"] [data-baseweb="select"] > div {
     background: #ffffff !important; border-color: #e2e8f0 !important; color: #0f172a !important;
 }
+label[data-testid="stWidgetLabel"] p,
+label[data-testid="stWidgetLabel"],
+.stRadio label, .stSelectbox label,
+[data-testid="stSelectbox"] label p,
+[data-testid="stRadio"] label p {
+    color: #1e293b !important; font-weight: 500 !important; font-size: 0.83rem !important;
+}
+.stRadio [data-testid="stMarkdownContainer"] p {
+    color: #1e293b !important; font-weight: 500 !important;
+}
 [data-baseweb="popover"] { background: #ffffff !important; }
 [data-baseweb="popover"] li { background: #ffffff !important; color: #0f172a !important; font-size: 0.83rem !important; }
 [data-baseweb="popover"] li:hover { background: #f8fafc !important; }
@@ -281,7 +304,7 @@ def plot_layout(**kw):
                    linecolor="#e2e8f0", gridcolor="#f8fafc"),
         yaxis=dict(tickfont=dict(color="#475569", size=10), title_font=dict(color="#475569", size=11),
                    linecolor="#e2e8f0", gridcolor="#f8fafc"),
-        legend=dict(font=dict(color="#1e293b", size=11), title_font=dict(color="#64748b")),
+        legend=dict(font=dict(color="#1e293b", size=12, family="Inter, sans-serif"), title_font=dict(color="#1e293b", size=11)),
         margin=dict(t=36, b=28, l=16, r=16),
     )
     base.update(kw)
@@ -534,7 +557,6 @@ def dashboard_mumbai_nlp(df):
         "Brand Performance",
         "Zone Intelligence",
         "Text Analysis",
-        "Priority Queue",
         "Station Report",
         "Data Export",
     ])
@@ -544,9 +566,8 @@ def dashboard_mumbai_nlp(df):
     with tabs[2]: tab_brands(df)
     with tabs[3]: tab_zones(df)
     with tabs[4]: tab_topics(df)
-    with tabs[5]: tab_priority(df)
-    with tabs[6]: tab_station_dive(df)
-    with tabs[7]: tab_export(df)
+    with tabs[5]: tab_station_dive(df)
+    with tabs[6]: tab_export(df)
 
 
 # ── Tab 0: Overview ────────────────────────────────────────────────────────────
@@ -589,13 +610,23 @@ def tab_overview(df):
     with col2:
         if "bert_star" in df.columns:
             star_sent = df.groupby(["bert_star", "sentiment"]).size().reset_index(name="count")
-            fig2 = px.bar(star_sent, x="bert_star", y="count",
-                          color="sentiment", color_discrete_map=SENTIMENT_COLORS,
-                          barmode="stack",
-                          labels={"bert_star": "Predicted Rating", "count": "Reviews", "sentiment": "Sentiment"})
+            fig2 = px.bar(
+                star_sent, x="bert_star", y="count",
+                color="sentiment", color_discrete_map=SENTIMENT_COLORS,
+                barmode="stack",
+                labels={"bert_star": "Predicted Star Rating (1–5)", "count": "Reviews", "sentiment": "Sentiment"},
+                category_orders={"bert_star": [1, 2, 3, 4, 5]},
+            )
+            fig2.update_xaxes(
+                tickvals=[1, 2, 3, 4, 5],
+                ticktext=["1 ★", "2 ★", "3 ★", "4 ★", "5 ★"],
+                range=[0.4, 5.6],
+                tickfont=dict(color="#1e293b", size=11),
+            )
             fig2.update_layout(**plot_layout(
                 height=320,
-                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0),
+                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0,
+                            font=dict(color="#1e293b", size=12)),
             ))
             chart_card(fig2)
 
@@ -697,7 +728,7 @@ def tab_issues(df):
     fig.update_xaxes(tickangle=35)
     fig.update_layout(**plot_layout(
         height=420, margin=dict(t=36, b=90, l=16, r=16),
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0, font=dict(color="#1e293b", size=12)),
     ))
     chart_card(fig)
 
@@ -906,7 +937,7 @@ def tab_zones(df):
         fig2.update_xaxes(tickangle=20)
         fig2.update_layout(**plot_layout(
             height=320,
-            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0),
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0, font=dict(color="#1e293b", size=12)),
         ))
         chart_card(fig2)
 
@@ -960,13 +991,8 @@ def _cached_lda(texts_tuple, n_topics=8):
 
 
 def tab_topics(df):
-    cL("Thematic Analysis — Key Topics in Customer Feedback")
-    st.caption(
-        "Latent Dirichlet Allocation (LDA) discovers hidden themes in review text without pre-defined labels. "
-        "Each review is assigned to its most probable topic based on word co-occurrence patterns."
-    )
-
-    n_topics = st.slider("Number of topics to discover", 4, 12, 8, key="lda_slider")
+    cL("Topic Discovery")
+    n_topics = st.slider("Number of topics", 4, 12, 8, key="lda_slider")
     with st.spinner("Discovering themes in customer feedback…"):
         topic_words, labels, dominant = _cached_lda(
             tuple(df["text"].fillna("").tolist()), n_topics
@@ -1245,16 +1271,9 @@ def tab_export(df):
     export_df = df[export_cols].rename(columns=rename)
     st.dataframe(export_df, use_container_width=True, height=440)
 
-    col1, col2 = st.columns(2)
-    with col1:
-        csv = export_df.to_csv(index=False).encode()
-        st.download_button("⬇  Download Full CSV", data=csv,
-                           file_name="mumbai_sentiment_analysis.csv", mime="text/csv", key="dl_full_csv")
-    with col2:
-        pq = build_priority_queue(df)
-        pq_csv = pq.to_csv(index=False).encode()
-        st.download_button("⬇  Download Priority Queue CSV", data=pq_csv,
-                           file_name="mumbai_priority_queue.csv", mime="text/csv", key="dl_pq_export")
+    csv = export_df.to_csv(index=False).encode()
+    st.download_button("⬇  Download Sentiment Analysis CSV", data=csv,
+                       file_name="mumbai_sentiment_analysis.csv", mime="text/csv", key="dl_full_csv")
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -1327,7 +1346,7 @@ def _st_overview(df):
                                 barmode="overlay", opacity=0.75,
                                 labels={"_rating":"Avg Station Rating","sentiment":"Sentiment"})
             fig2.update_layout(**plot_layout(height=300,
-                legend=dict(orientation="h",yanchor="bottom",y=1.02,xanchor="left",x=0)))
+                legend=dict(orientation="h",yanchor="bottom",y=1.02,xanchor="left",x=0,font=dict(color="#1e293b",size=12))))
             chart_card(fig2)
 
 
@@ -1386,7 +1405,7 @@ def _st_zones(df):
                       labels={"zone":"","count":"Stations","sentiment":"Sentiment"})
         fig2.update_xaxes(tickangle=15)
         fig2.update_layout(**plot_layout(height=300,
-            legend=dict(orientation="h",yanchor="bottom",y=1.02,xanchor="left",x=0)))
+            legend=dict(orientation="h",yanchor="bottom",y=1.02,xanchor="left",x=0,font=dict(color="#1e293b",size=12))))
         chart_card(fig2)
 
 
@@ -1546,7 +1565,7 @@ def _rv_overview(df):
                           color_discrete_map=SENTIMENT_COLORS,barmode="stack",
                           labels={"_rating":"Star Rating","count":"Reviews","sentiment":"Sentiment"})
             fig2.update_layout(**plot_layout(height=300,
-                legend=dict(orientation="h",yanchor="bottom",y=1.02,xanchor="left",x=0)))
+                legend=dict(orientation="h",yanchor="bottom",y=1.02,xanchor="left",x=0,font=dict(color="#1e293b",size=12))))
             chart_card(fig2)
 
     cL("Top Keywords")
@@ -1572,7 +1591,7 @@ def _rv_issues(df):
                  labels={"issue_category":"","count":"Reviews","sentiment":"Sentiment"})
     fig.update_xaxes(tickangle=35)
     fig.update_layout(**plot_layout(height=380,margin=dict(t=36,b=90,l=16,r=16),
-        legend=dict(orientation="h",yanchor="bottom",y=1.02,xanchor="left",x=0)))
+        legend=dict(orientation="h",yanchor="bottom",y=1.02,xanchor="left",x=0,font=dict(color="#1e293b",size=12))))
     chart_card(fig)
 
     sel = st.selectbox("Browse issue category", sorted(df["issue_category"].unique()), key="pune_issue_sel")
@@ -1600,7 +1619,7 @@ def _rv_trends(df):
                   color_discrete_map=SENTIMENT_COLORS,markers=True,
                   labels={pcol:"Period","count":"Reviews","sentiment":"Sentiment"})
     fig.update_layout(**plot_layout(height=320,
-        legend=dict(orientation="h",yanchor="bottom",y=1.02,xanchor="left",x=0)))
+        legend=dict(orientation="h",yanchor="bottom",y=1.02,xanchor="left",x=0,font=dict(color="#1e293b",size=12))))
     chart_card(fig)
 
 
