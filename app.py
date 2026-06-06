@@ -371,7 +371,7 @@ def sidebar():
         if view == "Customer Review Analysis":
             df_raw = load_mumbai_nlp()
             if df_raw is None or df_raw.empty:
-                st.sidebar.error("No scraped data. Run:\n```python scrape_mumbai_reviews.py```")
+                st.sidebar.error("No scraped data. Run:\n```python the data collection script```")
             else:
                 st.sidebar.markdown(f"""
                 <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:12px 14px;margin-top:8px;">
@@ -501,7 +501,7 @@ def dashboard_mumbai_nlp(df):
                     <div style="font-size:1.2rem;font-weight:800;color:#0f172a;letter-spacing:-0.025em;">
                         Mumbai Petrol Pump Intelligence</div>
                     <div style="font-size:0.8rem;color:#64748b;margin-top:2px;">
-                        Real Google Maps reviews &nbsp;·&nbsp; AI Sentiment Analysis &nbsp;·&nbsp;
+                        Customer reviews from Google Maps &nbsp;·&nbsp; AI Sentiment Analysis &nbsp;·&nbsp;
                         17 issue categories &nbsp;·&nbsp; 5 zones
                     </div>
                 </div>
@@ -739,8 +739,8 @@ def tab_issues(df):
         chart_card(fig3)
 
     cL("Review Browser")
-    sel_issue = st.selectbox("Select Issue Category", sorted(df["issue_category"].unique()))
-    sel_sent  = st.radio("Sentiment", ["All", "Negative", "Positive", "Neutral"], horizontal=True)
+    sel_issue = st.selectbox("Select Issue Category", sorted(df["issue_category"].unique()), key="issue_sel")
+    sel_sent  = st.radio("Sentiment", ["All", "Negative", "Positive", "Neutral"], horizontal=True, key="issue_sent_radio")
     sub = df[df["issue_category"] == sel_issue]
     if sel_sent != "All":
         sub = sub[sub["sentiment"] == sel_sent]
@@ -966,8 +966,8 @@ def tab_topics(df):
         "Each review is assigned to its most probable topic based on word co-occurrence patterns."
     )
 
-    n_topics = st.slider("Number of topics to discover", 4, 12, 8)
-    with st.spinner("Fitting topic model…"):
+    n_topics = st.slider("Number of topics to discover", 4, 12, 8, key="lda_slider")
+    with st.spinner("Discovering themes in customer feedback…"):
         topic_words, labels, dominant = _cached_lda(
             tuple(df["text"].fillna("").tolist()), n_topics
         )
@@ -993,7 +993,7 @@ def tab_topics(df):
 
     with col2:
         cL("Representative Terms")
-        sel_t = st.selectbox("Select topic", [labels[i] for i, _ in topic_words])
+        sel_t = st.selectbox("Select topic", [labels[i] for i, _ in topic_words], key="topic_sel")
         for i, words in topic_words:
             if labels[i] == sel_t:
                 st.markdown('<div class="card">', unsafe_allow_html=True)
@@ -1100,7 +1100,7 @@ def tab_priority(df):
 
     csv = pq.to_csv(index=False).encode()
     st.download_button("⬇  Download Priority Queue CSV", data=csv,
-                       file_name="mumbai_priority_queue.csv", mime="text/csv")
+                       file_name="mumbai_priority_queue.csv", mime="text/csv", key="dl_pq_tab")
 
     cL("Priority Observations")
     if not pq.empty:
@@ -1124,7 +1124,7 @@ def tab_priority(df):
 def tab_station_dive(df):
     cL("Individual Station Analysis")
     stations = sorted(df["station_name"].dropna().unique())
-    sel = st.selectbox("Select a station", stations)
+    sel = st.selectbox("Select a station", stations, key="station_sel")
     sdf = df[df["station_name"] == sel].copy()
 
     total   = len(sdf)
@@ -1249,12 +1249,12 @@ def tab_export(df):
     with col1:
         csv = export_df.to_csv(index=False).encode()
         st.download_button("⬇  Download Full CSV", data=csv,
-                           file_name="mumbai_sentiment_analysis.csv", mime="text/csv")
+                           file_name="mumbai_sentiment_analysis.csv", mime="text/csv", key="dl_full_csv")
     with col2:
         pq = build_priority_queue(df)
         pq_csv = pq.to_csv(index=False).encode()
         st.download_button("⬇  Download Priority Queue CSV", data=pq_csv,
-                           file_name="mumbai_priority_queue.csv", mime="text/csv")
+                           file_name="mumbai_priority_queue.csv", mime="text/csv", key="dl_pq_export")
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -1409,7 +1409,7 @@ def _st_scorecard(df):
                  use_container_width=True)
     st.download_button("⬇  Download Scorecard CSV",
                        data=sc.to_csv(index=False).encode(),
-                       file_name="mumbai_station_scorecard.csv", mime="text/csv")
+                       file_name="mumbai_station_scorecard.csv", mime="text/csv", key="dl_scorecard")
 
 
 def _st_insights(df):
@@ -1575,7 +1575,7 @@ def _rv_issues(df):
         legend=dict(orientation="h",yanchor="bottom",y=1.02,xanchor="left",x=0)))
     chart_card(fig)
 
-    sel = st.selectbox("Browse issue category", sorted(df["issue_category"].unique()))
+    sel = st.selectbox("Browse issue category", sorted(df["issue_category"].unique()), key="pune_issue_sel")
     neg_s = df[(df["issue_category"]==sel)&(df["sentiment"]=="Negative")][["_review_text","_rating","confidence"]].head(10)
     if neg_s.empty: st.info("No negative reviews for this category.")
     else:
@@ -1588,7 +1588,7 @@ def _rv_trends(df):
         st.info("No date column detected.")
         return
     df_t = df[df["_date"].notna()].copy()
-    gran = st.radio("Granularity",["Monthly","Weekly","Quarterly"],horizontal=True)
+    gran = st.radio("Granularity",["Monthly","Weekly","Quarterly"],horizontal=True, key="gran_radio")
     pcol = {"Monthly":"month","Weekly":"week","Quarterly":"quarter"}[gran]
     df_t["month"]=df_t["_date"].dt.to_period("M").dt.to_timestamp()
     df_t["week"]=df_t["_date"].dt.to_period("W").dt.to_timestamp()
@@ -1629,7 +1629,7 @@ def _rv_data(df, df_raw):
     st.dataframe(df[dc].rename(columns=rn),use_container_width=True,height=440)
     st.download_button("⬇  Download Results CSV",
                        data=df[dc].rename(columns=rn).to_csv(index=False).encode(),
-                       file_name="sentiment_results.csv",mime="text/csv")
+                       file_name="sentiment_results.csv", mime="text/csv", key="dl_results")
 
 
 # ══════════════════════════════════════════════════════════════════════════════
