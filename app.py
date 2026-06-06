@@ -992,49 +992,68 @@ def _cached_lda(texts_tuple, n_topics=8):
 
 def tab_topics(df):
     cL("Topic Discovery")
-    n_topics = st.slider("Number of topics", 4, 12, 8, key="lda_slider")
     with st.spinner("Discovering themes in customer feedback…"):
         topic_words, labels, dominant = _cached_lda(
-            tuple(df["text"].fillna("").tolist()), n_topics
+            tuple(df["text"].fillna("").tolist()), n_topics=8
         )
     df2 = df.copy()
     df2["topic"] = dominant
 
-    col1, col2 = st.columns([3, 2])
-    with col1:
-        cL("Topic Frequency Distribution")
-        tc = pd.Series(dominant).value_counts().reset_index()
-        tc.columns = ["Topic", "Reviews"]
-        fig = px.bar(
-            tc.sort_values("Reviews"), x="Reviews", y="Topic", orientation="h",
-            color="Reviews", color_continuous_scale="Blues",
-            labels={"Reviews": "Number of Reviews", "Topic": ""},
-            text="Reviews",
-        )
-        fig.update_traces(textposition="outside", textfont_size=11)
-        fig.update_layout(**plot_layout(height=360, showlegend=False,
-                                         coloraxis_showscale=False,
-                                         margin=dict(t=16,b=16,l=16,r=50)))
-        chart_card(fig)
+    # ── Topic frequency bar ──
+    cL("Theme Frequency Distribution")
+    tc = pd.Series(dominant).value_counts().reset_index()
+    tc.columns = ["Topic", "Reviews"]
+    fig = px.bar(
+        tc.sort_values("Reviews"), x="Reviews", y="Topic", orientation="h",
+        color="Reviews", color_continuous_scale="Blues",
+        labels={"Reviews": "Number of Reviews", "Topic": ""},
+        text="Reviews",
+    )
+    fig.update_traces(textposition="outside", textfont=dict(size=11, color="#1e293b"))
+    fig.update_layout(**plot_layout(height=max(320, len(tc)*52),
+                                     showlegend=False, coloraxis_showscale=False,
+                                     margin=dict(t=16, b=16, l=16, r=60)))
+    chart_card(fig)
 
-    with col2:
-        cL("Representative Terms")
-        sel_t = st.selectbox("Select topic", [labels[i] for i, _ in topic_words], key="topic_sel")
-        for i, words in topic_words:
-            if labels[i] == sel_t:
-                st.markdown('<div class="card">', unsafe_allow_html=True)
-                for w in words[:8]:
-                    st.markdown(
-                        f'<span class="badge" style="background:#eff6ff;color:#1e40af;margin:3px 2px;">{w}</span>',
-                        unsafe_allow_html=True)
-                st.markdown('</div>', unsafe_allow_html=True)
-                break
+    # ── Per-topic word table ──
+    cL("Key Terms per Theme")
+    # Build a clean table: one column per topic, top 8 words as rows
+    topic_table = {}
+    for i, words in topic_words:
+        label = labels[i]
+        # Filter out remaining noise
+        clean_words = [w.title() for w in words
+                       if len(w) > 3 and w not in {"other", "general", "service", "fill", "car", "air"}][:8]
+        topic_table[label] = clean_words + [""] * (8 - len(clean_words))
 
-    cL("Topic Distribution by Sentiment")
+    topic_df = pd.DataFrame(topic_table)
+    topic_df.index = [f"Term {i+1}" for i in range(len(topic_df))]
+
+    st.markdown('<div class="card" style="overflow-x:auto;">', unsafe_allow_html=True)
+    st.dataframe(
+        topic_df,
+        use_container_width=True,
+        hide_index=False,
+        height=316,
+    )
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    # ── Sentiment heatmap ──
+    cL("Theme Distribution by Sentiment")
     pivot = df2.groupby(["topic", "sentiment"]).size().unstack(fill_value=0)
-    fig2 = px.imshow(pivot, color_continuous_scale="Blues", aspect="auto",
-                     labels={"x":"Sentiment","y":"Topic","color":"Reviews"})
-    fig2.update_layout(**plot_layout(height=380, margin=dict(t=20,b=20,l=220,r=20)))
+    # Reorder sentiment columns
+    for col in ["Positive", "Neutral", "Negative"]:
+        if col not in pivot.columns:
+            pivot[col] = 0
+    pivot = pivot[["Positive", "Neutral", "Negative"]]
+    fig2 = px.imshow(
+        pivot, color_continuous_scale="Blues", aspect="auto",
+        labels={"x": "Sentiment", "y": "Theme", "color": "Reviews"},
+    )
+    fig2.update_xaxes(tickfont=dict(color="#1e293b", size=12))
+    fig2.update_yaxes(tickfont=dict(color="#1e293b", size=11))
+    fig2.update_layout(**plot_layout(height=max(300, len(pivot)*52),
+                                     margin=dict(t=20, b=20, l=200, r=20)))
     chart_card(fig2)
 
     cL("Frequently Occurring Phrases")

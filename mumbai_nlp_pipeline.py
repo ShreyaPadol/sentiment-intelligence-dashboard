@@ -18,14 +18,39 @@ from sklearn.decomposition import LatentDirichletAllocation, NMF
 # ── Text cleaning ──────────────────────────────────────────────────────────────
 
 STOPWORDS = {
+    # articles / prepositions / conjunctions
     "the", "a", "an", "is", "it", "in", "of", "and", "to", "for", "with",
     "on", "at", "by", "from", "this", "was", "are", "be", "not", "but",
     "have", "had", "has", "they", "their", "there", "that", "very", "so",
-    "my", "we", "i", "its", "here", "get", "got", "also", "just", "no",
     "or", "as", "do", "did", "been", "all", "one", "if", "up", "out",
-    "about", "than", "more", "when", "will", "can", "good", "place", "nice",
-    "would", "like", "really", "come", "even", "always", "never", "dont",
-    "petrol", "pump", "station", "fuel", "filling",
+    "about", "than", "more", "when", "will", "can", "would", "like",
+    # pronouns
+    "you", "your", "yours", "my", "we", "i", "its", "he", "she", "her",
+    "him", "his", "them", "us", "our", "me", "who", "whom", "what",
+    "which", "where", "how", "why", "they",
+    # filler verbs / adverbs
+    "get", "got", "also", "just", "no", "really", "come", "even", "always",
+    "never", "dont", "good", "place", "nice", "here", "also", "again",
+    "went", "came", "said", "told", "take", "taken", "give", "given",
+    "put", "use", "used", "want", "need", "let", "go", "going", "said",
+    "still", "back", "too", "yet", "off", "now", "then", "well", "much",
+    "many", "some", "any", "few", "every", "each", "both", "same", "other",
+    "first", "last", "new", "old", "via", "per", "re", "ll", "ve", "don",
+    # domain noise — too generic for topics
+    "petrol", "pump", "station", "fuel", "filling", "mumbai", "india",
+    "oil", "gas", "visit", "visited", "please", "today", "day", "time",
+    "times", "ago", "week", "month", "year", "car", "bike", "vehicle",
+    "fill", "filled", "air", "service", "other", "overall", "general",
+    # remaining filler
+    "only", "while", "after", "before", "being", "through", "another",
+    "should", "asked", "people", "person", "experience", "free", "extra",
+    "less", "show", "happened", "extremely", "petroleum", "road",
+    "owner", "speed", "crowd", "customers", "customer", "another",
+    "while", "toward", "upon", "since", "until", "though", "although",
+    "because", "between", "under", "above", "below", "around", "against",
+    "during", "without", "within", "along", "following", "across",
+    "behind", "beyond", "plus", "except", "however", "therefore",
+    "moreover", "furthermore", "although", "despite", "instead",
 }
 
 
