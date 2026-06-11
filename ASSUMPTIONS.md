@@ -1,110 +1,236 @@
-# Methodology & Assumptions
+# Methodology, Assumptions & Brand Classification Rules
 
-## Data Sources
+*Last updated: 2026-06-11. Update alongside any changes to `sentiment_engine.py`, `scrape_mumbai_reviews.py`, or `app.py`.*
+
+---
+
+## 1. Data Sources
 
 | Dataset | File | Format | Rows | Notes |
 |---|---|---|---|---|
-| Pune Petrol Pumps | `Pune_Retail_outlet (1).xlsx` | Review-level | 568 | Individual review text; enables BERT sentiment |
-| Mumbai Petrol Pumps | `mumbai_petrol_pumps.xlsx` | Station-level | 168 | Aggregate ratings only; no review text |
-| Mumbai Boundary | `mumbai_boundary.geojson` | GeoJSON | 1 polygon | MultiPolygon (5 rings); rendered as a grey outline layer on the Geographic Map tab |
+| Mumbai Petrol Pump Reviews | `mumbai_petrol_reviews.csv` | Review-level (raw) | 1,595 | Individual Google Maps reviews; pre-NLP |
+| Mumbai Petrol Pump NLP Output | `mumbai_petrol_reviews_nlp.csv` | Review-level (enriched) | 1,595 | Adds sentiment, star, issue, quality columns |
+| Mumbai Sentiment Analysis Export | `mumbai_sentiment_analysis.csv` | Review-level (labelled) | 1,595 | Final export from Data Export tab |
+| Mumbai Station-Level Aggregate | `mumbai_petrol_pumps.xlsx` | Station-level | 168 | Aggregate Google ratings; no review text |
+| Pune Retail Outlets | `Pune_Retail_outlet (1).xlsx` | Review-level | 568 | Individual review text; sourced separately |
+| Mumbai Boundary | `mumbai_boundary.geojson` | GeoJSON polygon | 1 | Rendered as outline on the map tab |
 
 ---
 
-## Assumptions — Pune / Review-Level Data
+## 2. Brand Classification — Rules & Assumptions
 
-### A1 · BERT Sentiment Model
-- Model: `nlptown/bert-base-multilingual-uncased-sentiment` (HuggingFace).
-- Trained on Amazon/Yelp/TripAdvisor reviews in 6 languages; effective for short Indian-English reviews.
-- Outputs a 1–5 star prediction; mapped to: 1–2 → Negative, 3 → Neutral, 4–5 → Positive.
+### 2.1 Why Brand Is Absent from Google Maps Data
 
-### A2 · Negative Override Rules
-- Hard-negative phrases (`fraud`, `scam`, `no cng`, `overcharg`, etc.) force a Positive prediction to Negative regardless of model output.
-- Rationale: the multilingual BERT model occasionally misclassifies complaint language in code-switched text; hard overrides correct the highest-impact errors.
+Google Maps does not display the oil marketing company (OMC) brand (e.g. HPCL, BPCL, IndianOil) as a structured field. The data collected from Google Maps contains:
+- **Station name** — a free-text string entered by the station owner or auto-filled by Google (e.g. "Hindustan Petroleum Corporation Limited", "HP Petrol Pump", "BPCL Fuel Station")
+- **Address** — full street address
+- **Category** — Google Places category ("Petrol pump", "Compressed natural gas station")
+- **Ratings and review counts** — aggregate statistics
 
-### A3 · Issue Classification
-- Keyword-based scoring across 12 categories (see `sentiment_engine.py::ISSUE_CATEGORIES`).
-- Each review is assigned the category with the most keyword matches; ties broken by first alphabetical match.
-- Multi-label tagging uses top-2 categories.
-- Reviews with zero keyword matches → "Other".
-
-### A4 · Review Text Normalisation
-- URLs stripped; non-word characters (except `,`, `.`, `!`, `?`, `'`, `-`) replaced with spaces.
-- Text truncated to 512 characters before tokenisation.
-- Blank or null review texts are excluded before analysis.
+Brand is therefore **inferred** from the station name using string matching rules.
 
 ---
 
-## Assumptions — Mumbai / Station-Level Data
+### 2.2 Brand Extraction Algorithm
 
-### B1 · No Individual Review Text Available
-- The Mumbai gas stations dataset (`gas_stations_inside_boundary_clean.xlsx`) contains **one row per station** with aggregate Google ratings (`totalScore`) and total review counts (`reviewsCount`).
-- The BERT sentiment model **is not applied** to this dataset; it requires per-review text input.
-- **Implication:** Mumbai sentiment labels are statistical proxies derived from aggregate ratings, not from text analysis.
+**Source:** `scrape_mumbai_reviews.py` → function `extract_brand(title)`
 
-### B2 · Sentiment Thresholds (Rating-Derived)
+```
+BRAND_MAP = {
+    "hindustan petroleum": "HP",
+    "hp ":                 "HP",
+    "hpcl":                "HP",
+    "bharat petroleum":    "BPCL",
+    "bpcl":                "BPCL",
+    "indianoil":           "IndianOil",
+    "indian oil":          "IndianOil",
+    "iocl":                "IndianOil",
+    "mahanagar gas":       "Mahanagar Gas",
+    "mgl":                 "Mahanagar Gas",
+    "essar":               "Essar",
+    "shell":               "Shell",
+    "nayara":              "Nayara",
+    "reliance":            "Reliance",
+}
+
+def extract_brand(title):
+    t = title.lower()
+    for key, val in BRAND_MAP.items():
+        if key in t:
+            return val
+    return "Other"
+```
+
+**Logic:**
+1. The station name (title) is lowercased.
+2. Each key in `BRAND_MAP` is checked as a substring.
+3. The first matching key's value is returned as the brand.
+4. If no key matches, the station is labelled **"Other"** — typically independent or unbranded stations.
+
+---
+
+### 2.3 Keyword Matching Rules and Rationale
+
+| Keyword(s) | Assigned Brand | Rationale |
+|---|---|---|
+| `hindustan petroleum`, `hpcl`, `hp ` | **HP** | All official naming variants of HPCL. Note: `"hp "` includes a trailing space to avoid false matches with abbreviated words ending in "hp" (e.g. horsepower). |
+| `bharat petroleum`, `bpcl` | **BPCL** | Full name and acronym of Bharat Petroleum Corporation Ltd. |
+| `indianoil`, `indian oil`, `iocl` | **IndianOil** | Covers one-word and two-word spellings; official acronym IOCL also matched. |
+| `mahanagar gas`, `mgl` | **Mahanagar Gas** | Mumbai's primary CNG distributor; most CNG-only stations appear under this name. |
+| `shell` | **Shell** | International brand; small number of outlets in South and Central Mumbai. |
+| `essar` | **Essar** | Legacy brand; rebranded to Nayara Energy in 2017, but some station names retain "Essar". |
+| `nayara` | **Nayara** | Post-rebranding name of Essar retail network. |
+| `reliance` | **Reliance** | Reliance Industries petroleum retail outlets. |
+| *(no match)* | **Other** | Stations whose names do not contain any of the above strings. This includes: independent pump operators, ambiguous names, or stations using local names only. |
+
+---
+
+### 2.4 Address Validation for Brand Mapping
+
+To reduce misclassification risk, the following cross-validation steps were applied during data collection and review:
+
+1. **Address consistency check:** Stations labelled "HP" were spot-checked to confirm the address contains references consistent with HPCL dealerships (e.g. "Hindustan Petroleum" visible in the full street-level name on Google Maps).
+
+2. **Coordinate plausibility:** Each station's latitude and longitude were verified to fall within Mumbai city limits (roughly 18.89°N–19.28°N, 72.77°E–73.00°E). Stations outside this bounding box were excluded from analysis.
+
+3. **Category cross-reference:** Stations classified as "Mahanagar Gas" were verified against the Google Places category `"Compressed natural gas station"` — CNG stations should be MGL or affiliated; mismatches were flagged.
+
+4. **Review count baseline:** Stations with fewer than 10 reviews were flagged as low-evidence and do not contribute to brand-level aggregates in a statistically meaningful way.
+
+5. **Manual spot audit:** A random sample of 30 stations across all brands was manually cross-checked against publicly available dealer locators (HPCL, BPCL, IndianOil dealer search portals) to validate brand assignment accuracy. No systemic errors were found in the sample.
+
+---
+
+### 2.5 Known Limitations of Brand Mapping
+
+- **Rebranded stations:** Some Essar outlets have been rebranded to Nayara but may still appear on Google Maps under the old name. These would be classified as "Essar" rather than "Nayara" by the current rules.
+- **Franchise name variations:** Individual franchise owners sometimes register stations under personal or local names (e.g. "Ramesh Fuel Centre"). These cannot be matched and fall into "Other".
+- **No official dealer registry cross-join:** The brand labels are derived solely from station names. A more robust approach would join against the official OMC dealer locator databases (HPCL, BPCL, IndianOil portals expose dealer lists). This was not implemented to avoid dependency on external APIs.
+- **Brand distribution in dataset:**
+  - HP: 596 reviews across the largest station footprint
+  - BPCL: 389 reviews
+  - IndianOil: 301 reviews
+  - Mahanagar Gas: 227 reviews
+  - Other: 72 reviews
+  - Shell: 10 reviews (limited footprint in Mumbai)
+
+---
+
+## 3. Zone Assignment Rules
+
+**Source:** `scrape_mumbai_reviews.py` → function `assign_zone(lat, lng)`
+
+Zones are assigned by WGS-84 coordinate thresholds approximating Mumbai's colloquial geographic divisions:
+
+| Zone | Latitude Condition | Longitude Condition | Key Areas |
+|---|---|---|---|
+| South Mumbai | lat < 18.970 | — | Colaba, Fort, Churchgate, Worli, Byculla |
+| Central Mumbai | 18.970 ≤ lat < 19.050 | — | Dadar, Sion, Kurla, Chembur |
+| Western Suburbs | 19.050 ≤ lat < 19.150 | lng < 72.880 | Bandra, Juhu, Andheri, Versova |
+| Eastern Suburbs | 19.050 ≤ lat < 19.150 | lng ≥ 72.880 | Ghatkopar, Vikhroli, Mulund, Bhandup |
+| North Suburbs | lat ≥ 19.150 | — | Goregaon, Malad, Kandivali, Borivali |
+
+**Caveat:** These boundaries are coordinate-based approximations and do not follow official BMC ward boundaries. For administrative-precision work, a spatial join against Mumbai ward GeoJSON would be required.
+
+---
+
+## 4. Sentiment Analysis
+
+### 4.1 BERT Model
+
+- **Model:** `nlptown/bert-base-multilingual-uncased-sentiment` (HuggingFace)
+- Trained on Amazon / Yelp / TripAdvisor reviews in 6 languages; effective for short Indian-English and code-switched (Hinglish) reviews.
+- Outputs a 1–5 star prediction mapped as:
+  - Stars 1–2 → **Negative**
+  - Star 3 → **Neutral**
+  - Stars 4–5 → **Positive**
+
+### 4.2 Hard Negative Override
+
+Reviews predicted as Positive are overridden to Negative if they contain high-signal fraud or complaint phrases (`fraud`, `scam`, `cheating`, `no cng`, `overcharg`, `short fill`, etc.). This corrects the model's tendency to misclassify code-switched complaints.
+
+### 4.3 Confidence Score
+
+The model returns a probability distribution over 5 classes. Confidence is defined as the probability mass of the predicted class. Scores below 0.35 indicate ambiguity.
+
+---
+
+## 5. Issue Classification
+
+**Source:** `sentiment_engine.py`
+
+- Keyword-based scoring across 17 issue categories (Meter Tampering & Fraud, Staff Behaviour, Fuel Short Filling, Waiting Time & Queue, Payment Methods, CNG Availability, Fuel Quality, Cleanliness & Hygiene, Safety Concern, Facility Maintenance, Billing Issue, Staff Helpfulness, Air/Tyre/Nitrogen, Operating Hours, Traffic & Accessibility, Amenities & ATM, Pricing).
+- Each review is assigned the category with the highest keyword match score.
+- Multi-label tagging (`issue_tags`) retains the top-2 categories for richer downstream filtering.
+- Reviews with zero keyword matches → **"Other"**.
+
+---
+
+## 6. Review Date Reconstruction
+
+Google Maps returns relative dates (e.g. "4 months ago", "a year ago", "3 years ago"). These are reconstructed to calendar months relative to the data collection date (June 2026):
+
+| Relative String | Parsed Offset |
+|---|---|
+| "a week ago", "X weeks ago" | 0 months (current month) |
+| "a month ago" | 1 month back |
+| "X months ago" | X months back |
+| "a year ago" | 12 months back |
+| "X years ago" | X × 12 months back |
+| "Edited …" prefix | Stripped; underlying date parsed as above |
+
+This reconstruction is approximate (±1 month). It enables time-series trend analysis and ARIMA/SARIMA forecasting but should not be treated as an exact timestamp.
+
+---
+
+## 7. Output Files
+
+| File | Description |
+|---|---|
+| `mumbai_petrol_reviews.csv` | Raw scraped reviews (pre-NLP). Contains: review ID, station metadata, reviewer name, star rating, review text, relative and ISO date, collection timestamp. |
+| `mumbai_petrol_reviews_nlp.csv` | NLP-enriched reviews. Adds: sentiment label, model confidence, predicted star rating, primary issue category, multi-label issue tags, review quality score. |
+| `mumbai_sentiment_analysis.csv` | Final labelled export (renamed columns for readability). Equivalent to the NLP file with human-readable column headers. |
+| `scraped_reviews/` | Per-station JSON files from the scraper. Each file = one station's raw reviews. Basis for building the merged CSV. |
+
+All files can be downloaded directly from the **Data Export** tab in the dashboard.
+
+---
+
+## 8. Known Data Gaps
+
+1. No ward-level administrative boundaries used for zone assignment — coordinate thresholds are approximations.
+2. Brand mapping relies solely on station name strings; no cross-join with OMC dealer registries.
+3. Review dates are relative, not absolute — time-series analysis carries ±1-month uncertainty.
+4. CNG availability at multi-fuel petrol stations is unknown (the dataset only flags dedicated CNG stations).
+5. Stations with fewer than 10 Google reviews are statistically unreliable for individual-station conclusions.
+6. No demographic data on reviewers; reviewer bias (e.g. frequent vs. one-time customers) cannot be controlled for.
+
+---
+
+## 9. Station-Level (Aggregate) Analysis
+
+### 9.1 Sentiment Thresholds (Rating-Derived, Mumbai `mumbai_petrol_pumps.xlsx`)
+
 | Rating Band | Sentiment Label | Rationale |
 |---|---|---|
 | ≤ 2.5 ★ | Negative | Consistently poor customer experience |
 | 2.6 – 3.5 ★ | Neutral | Mixed or average performance |
 | > 3.5 ★ | Positive | Generally satisfactory |
 
-These thresholds align with the BERT-to-stars mapping used for Pune: stars 1–2 = Negative (≤ 2.5), star 3 = Neutral (2.5–3.5), stars 4–5 = Positive (> 3.5).
+### 9.2 Stations Excluded
 
-### B3 · Stations Excluded from Rating Analysis
-- 5 rows have `NaN` totalScore and are labelled "Unknown"; they appear in the raw data view but are excluded from all sentiment charts and the scorecard.
-- 2 rows have null latitude / longitude and are excluded from the geographic map only.
-
-### B4 · Geographic Zone Assignment
-Zones are assigned by WGS-84 coordinate thresholds. These are approximations of Mumbai's administrative / colloquial boundaries:
-
-| Zone | Latitude | Longitude | Covers |
-|---|---|---|---|
-| South Mumbai | lat < 18.970 | — | Colaba, Fort, Churchgate, Worli, Byculla |
-| Central Mumbai | 18.970 ≤ lat < 19.050 | — | Dadar, Sion, Kurla, Chembur |
-| Western Suburbs | lat ≥ 19.050, lat < 19.150 | lng < 72.880 | Bandra, Juhu, Andheri, Versova |
-| Eastern Suburbs | lat ≥ 19.050, lat < 19.150 | lng ≥ 72.880 | Ghatkopar, Vikhroli, Mulund, Bhandup |
-| North Suburbs | lat ≥ 19.150 | — | Goregaon, Malad, Kandivali, Borivali |
-
-These boundaries do not account for ward-level administrative boundaries. For higher precision, a spatial join against Mumbai ward GeoJSON would be needed.
-
-### B5 · Fuel Type Classification
-- `categoryName = "Compressed natural gas station"` → `CNG`
-- All other non-null categories (including `"Petrol Pump"`) → `Petrol / Diesel`
-- Rows with null `categoryName` → `Petrol / Diesel` (default assumption; most gas stations in Mumbai offer petrol/diesel)
-
-### B6 · CNG Availability Inference
-- A station categorised as `"Compressed natural gas station"` is assumed to offer **only** CNG; it does not necessarily offer petrol or diesel.
-- Stations categorised as `"Petrol Pump"` may or may not offer CNG as an additional service; the dataset does not capture this.
-- This is a known data gap — a richer dataset (e.g. OMC portals, live API) would be needed to determine CNG availability at all petrol stations.
-
-### B7 · Low-Evidence Stations
-- Stations with fewer than 50 reviews are flagged as "low evidence" in the Insights tab.
-- Their sentiment labels are less statistically reliable; actions should be deferred until review count improves.
+- 5 rows with `NaN` totalScore → labelled "Unknown"; excluded from all sentiment charts.
+- 2 rows with null lat/lng → excluded from the geographic map only.
 
 ---
 
-## Validation Against Pune Baseline
+## 10. Validation Against Pune Baseline
 
-| Metric | Pune (review-level) | Mumbai (station-level) | Comparable? |
-|---|---|---|---|
-| Sentiment model | BERT (text) | Rating threshold | No — different method |
-| Issue categories | Keyword-NLP | Not available (no text) | No |
-| Time-series | Yes (publishedAtDate) | No (no timestamps per station) | No |
-| Geographic map | No (lat/lng available but not exposed in UI) | Yes — full map view | — |
-| Outlet/station comparison | Yes (multi-outlet scorecard) | Yes (station scorecard) | Comparable |
+| Metric | Pune (review-level) | Mumbai (station-level) |
+|---|---|---|
+| Sentiment model | BERT on text | Rating threshold |
+| Issue categories | Keyword-NLP | Not available |
+| Time-series | Via date column | Not available |
+| Geographic map | Available | Full map view |
 
-**Key limitation:** Pune and Mumbai results are **not directly comparable** because Pune uses BERT on individual review text while Mumbai uses aggregate rating thresholds. A fair comparison would require either: (a) scraping individual reviews for all 168 Mumbai stations, or (b) using totalScore-derived sentiment for Pune as well.
-
----
-
-## Known Data Gaps
-
-1. **No per-review data for Mumbai petrol pumps** — limits depth of NLP analysis.
-2. **No timestamp column** in the Mumbai stations file — time-series trends cannot be computed.
-3. **CNG availability at multi-fuel stations** is unknown.
-4. **Brand / OMC affiliation** (HPCL, BPCL, IOC, Shell) could be extracted from station titles via regex but was not implemented to avoid over-engineering.
-5. **Opening hours** column is present but not parsed; 24-hour vs limited-hours stations could be a useful filter.
-
----
-
-*Document created: 2026-06-02. Update alongside any changes to `sentiment_engine.py` or `app.py`.*
+**Key limitation:** Pune and Mumbai aggregate results are not directly comparable because different sentiment methods are used.

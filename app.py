@@ -293,7 +293,6 @@ INS = {
     "teal":   ("#f0fdfa", "#0d9488"),
 }
 
-
 def plot_layout(**kw):
     base = dict(
         template="plotly_white",
@@ -309,6 +308,8 @@ def plot_layout(**kw):
     )
     base.update(kw)
     return base
+
+
 
 
 def top_keywords(text, n=12):
@@ -363,7 +364,6 @@ def run_bert(texts_tuple):
 
 
 # ── Sidebar ────────────────────────────────────────────────────────────────────
-
 def sidebar():
     st.sidebar.markdown("""
     <div style="padding:0 0 1.25rem 0;border-bottom:1px solid #e2e8f0;margin-bottom:1.25rem;">
@@ -557,6 +557,7 @@ def dashboard_mumbai_nlp(df):
         "Brand Performance",
         "Zone Intelligence",
         "Text Analysis",
+        "Trend Forecasting",
         "Station Report",
         "Data Export",
     ])
@@ -566,8 +567,9 @@ def dashboard_mumbai_nlp(df):
     with tabs[2]: tab_brands(df)
     with tabs[3]: tab_zones(df)
     with tabs[4]: tab_topics(df)
-    with tabs[5]: tab_station_dive(df)
-    with tabs[6]: tab_export(df)
+    with tabs[5]: tab_forecasting(df)
+    with tabs[6]: tab_station_dive(df)
+    with tabs[7]: tab_export(df)
 
 
 # ── Tab 0: Overview ────────────────────────────────────────────────────────────
@@ -1162,6 +1164,301 @@ def tab_priority(df):
         ic(INS["teal"], f"<b>Exemplary Station: {best['Station']}</b> — "
            f"Only {best['Negative %']:.0f}% negative reviews. "
            f"Use as a benchmark model for training and operational standards.")
+
+
+# ── Tab 5b: Trend Forecasting (ARIMA / SARIMA) ────────────────────────────────
+
+def _parse_relative_date(rel, ref_date=pd.Timestamp("2026-06-01")):
+    """Convert a Google Maps relative date string to an approximate calendar month."""
+    if not isinstance(rel, str):
+        return None
+    s = rel.lower().replace("edited ", "").strip()
+    if "week" in s:
+        return ref_date
+    if re.match(r"a month", s):
+        return ref_date - pd.DateOffset(months=1)
+    m = re.match(r"(\d+)\s+month", s)
+    if m:
+        return ref_date - pd.DateOffset(months=int(m.group(1)))
+    if re.match(r"a year", s):
+        return ref_date - pd.DateOffset(months=12)
+    m = re.match(r"(\d+)\s+year", s)
+    if m:
+        return ref_date - pd.DateOffset(months=int(m.group(1)) * 12)
+    return None
+
+
+@st.cache_data(show_spinner=False)
+def _build_monthly_ts(idx_tuple, dates_tuple, sentiments_tuple, issues_tuple):
+    df_ts = pd.DataFrame({
+        "date_rel": list(dates_tuple),
+        "sentiment": list(sentiments_tuple),
+        "issue": list(issues_tuple),
+    })
+    df_ts["month"] = df_ts["date_rel"].apply(_parse_relative_date)
+    df_ts = df_ts[df_ts["month"].notna()].copy()
+    df_ts["month"] = pd.to_datetime(df_ts["month"]).dt.to_period("M").dt.to_timestamp()
+    return df_ts
+
+
+def _run_arima(series, steps=6, seasonal=False, m=12):
+    try:
+        from statsmodels.tsa.statespace.sarimax import SARIMAX
+        order = (1, 1, 1)
+        seasonal_order = (1, 1, 1, m) if seasonal else (0, 0, 0, 0)
+        model = SARIMAX(series, order=order, seasonal_order=seasonal_order,
+                        enforce_stationarity=False, enforce_invertibility=False)
+        fit = model.fit(disp=False)
+        forecast = fit.get_forecast(steps=steps)
+        fc_mean = forecast.predicted_mean
+        fc_ci   = forecast.conf_int(alpha=0.20)
+        return fit.fittedvalues, fc_mean, fc_ci, fit
+    except Exception as e:
+        return None, None, None, str(e)
+
+
+def tab_forecasting(df):
+    cL("Time-Series Overview")
+    st.markdown("""
+    <div class="ic" style="background:#eff6ff;border-left-color:#1e40af;font-size:0.84rem;line-height:1.75;margin-bottom:1rem;">
+    <b>Methodology note</b> — Google Maps returns relative dates ("4 months ago", "2 years ago").
+    These are reconstructed to calendar months relative to the data collection date (June 2026),
+    carrying an estimated uncertainty of ±1 month. ARIMA and SARIMA models are then fitted to
+    the resulting monthly time series. Forecasts should be interpreted as directional signals,
+    not precise predictions.
+    </div>
+    """, unsafe_allow_html=True)
+
+    df_ts = _build_monthly_ts(
+        tuple(df.index),
+        tuple(df["date_relative"].fillna("").tolist()),
+        tuple(df["sentiment"].tolist()),
+        tuple(df["issue_category"].tolist()),
+    )
+
+    if df_ts.empty or df_ts["month"].nunique() < 6:
+        st.warning("Insufficient temporal data for forecasting (fewer than 6 distinct months detected).")
+        return
+
+    monthly_vol = df_ts.groupby("month").size().reset_index(name="Reviews").sort_values("month")
+
+    cL("Monthly Review Volume")
+    fig_vol = px.bar(monthly_vol, x="month", y="Reviews",
+                     color_discrete_sequence=[BRAND_L],
+                     labels={"month": "Month", "Reviews": "Number of Reviews"})
+    fig_vol.update_layout(**plot_layout(height=300))
+    chart_card(fig_vol)
+
+    monthly_sent = df_ts.groupby(["month", "sentiment"]).size().reset_index(name="count").sort_values("month")
+
+    cL("Monthly Sentiment Trend")
+    fig_sent = px.line(monthly_sent, x="month", y="count", color="sentiment",
+                       color_discrete_map=SENTIMENT_COLORS, markers=True,
+                       labels={"month": "Month", "count": "Reviews", "sentiment": "Sentiment"})
+    fig_sent.update_layout(**plot_layout(
+        height=340,
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0,
+                    font=dict(color="#1e293b", size=12)),
+    ))
+    chart_card(fig_sent)
+
+    neg_rate_ts = (
+        df_ts.groupby("month")
+        .apply(lambda x: (x["sentiment"] == "Negative").mean() * 100)
+        .reset_index(name="Negative Rate (%)")
+        .sort_values("month")
+    )
+
+    cL("Monthly Negative Sentiment Rate")
+    fig_neg = px.line(neg_rate_ts, x="month", y="Negative Rate (%)", markers=True,
+                      color_discrete_sequence=[NEG], labels={"month": "Month"})
+    fig_neg.add_hline(y=neg_rate_ts["Negative Rate (%)"].mean(), line_dash="dash",
+                      line_color=GREY,
+                      annotation_text=f"Avg {neg_rate_ts['Negative Rate (%)'].mean():.1f}%")
+    fig_neg.update_layout(**plot_layout(height=300))
+    chart_card(fig_neg)
+
+    cL("Top Issue Categories Over Time")
+    top5_issues = df_ts["issue"].value_counts().head(5).index.tolist()
+    issue_ts = (
+        df_ts[df_ts["issue"].isin(top5_issues)]
+        .groupby(["month", "issue"]).size()
+        .reset_index(name="count")
+        .sort_values("month")
+    )
+    fig_issue = px.line(issue_ts, x="month", y="count", color="issue", markers=True,
+                        color_discrete_map=ISSUE_COLORS,
+                        labels={"month": "Month", "count": "Reviews", "issue": "Issue Category"})
+    fig_issue.update_layout(**plot_layout(
+        height=360,
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0,
+                    font=dict(color="#1e293b", size=11)),
+    ))
+    chart_card(fig_issue)
+
+    # ── ARIMA / SARIMA controls ──
+    cL("ARIMA / SARIMA Forecast")
+
+    col_cfg1, col_cfg2, col_cfg3 = st.columns(3)
+    with col_cfg1:
+        forecast_target = st.selectbox(
+            "Forecast metric",
+            ["Total Review Volume", "Negative Review Count", "Negative Rate (%)"],
+            key="fc_target",
+        )
+    with col_cfg2:
+        model_type = st.radio("Model", ["ARIMA", "SARIMA"], horizontal=True, key="fc_model")
+    with col_cfg3:
+        fc_steps = st.slider("Forecast horizon (months)", 3, 12, 6, key="fc_steps")
+
+    if forecast_target == "Total Review Volume":
+        series = monthly_vol.set_index("month")["Reviews"]
+        y_label = "Reviews per Month"
+    elif forecast_target == "Negative Review Count":
+        neg_counts = (
+            df_ts[df_ts["sentiment"] == "Negative"]
+            .groupby("month").size()
+            .reindex(monthly_vol["month"], fill_value=0)
+        )
+        neg_counts.index = pd.DatetimeIndex(neg_counts.index)
+        series = neg_counts
+        y_label = "Negative Reviews per Month"
+    else:
+        series = neg_rate_ts.set_index("month")["Negative Rate (%)"]
+        y_label = "Negative Rate (%)"
+
+    series.index = pd.DatetimeIndex(series.index)
+    series = series.sort_index()
+
+    if len(series) < 6:
+        st.warning("At least 6 monthly data points are required for forecasting.")
+        return
+
+    with st.spinner(f"Fitting {model_type} model…"):
+        fitted, fc_mean, fc_ci, fit_obj = _run_arima(
+            series, steps=fc_steps, seasonal=(model_type == "SARIMA"), m=12
+        )
+
+    if fc_mean is None:
+        st.error(f"Model fitting failed: {fit_obj}")
+        return
+
+    last_date = series.index[-1]
+    fc_dates = [last_date + pd.DateOffset(months=i + 1) for i in range(fc_steps)]
+
+    fig_fc = go.Figure()
+    fig_fc.add_trace(go.Scatter(
+        x=series.index, y=series.values, mode="lines+markers",
+        name="Actual", line=dict(color=BRAND, width=2), marker=dict(size=6),
+    ))
+    if fitted is not None:
+        fig_fc.add_trace(go.Scatter(
+            x=fitted.index, y=fitted.values, mode="lines",
+            name="Fitted", line=dict(color=BRAND_L, width=1.5, dash="dot"),
+        ))
+    if fc_ci is not None:
+        fig_fc.add_trace(go.Scatter(
+            x=fc_dates + fc_dates[::-1],
+            y=list(fc_ci.iloc[:, 1]) + list(fc_ci.iloc[:, 0])[::-1],
+            fill="toself", fillcolor="rgba(220,38,38,0.10)",
+            line=dict(color="rgba(0,0,0,0)"),
+            name="80% Confidence Interval",
+        ))
+    fig_fc.add_trace(go.Scatter(
+        x=fc_dates, y=fc_mean.values, mode="lines+markers",
+        name="Forecast", line=dict(color=NEG, width=2.5, dash="dash"),
+        marker=dict(symbol="diamond", size=7, color=NEG),
+    ))
+    fig_fc.add_vline(x=str(last_date), line_dash="dot", line_color=GREY,
+                     annotation_text="Forecast starts", annotation_position="top left")
+    fig_fc.update_layout(**plot_layout(
+        height=420,
+        title=dict(text=f"{model_type} Forecast — {forecast_target}", font=dict(size=13)),
+        yaxis_title=y_label, xaxis_title="Month",
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0,
+                    font=dict(color="#1e293b", size=12)),
+    ))
+    chart_card(fig_fc)
+
+    cL("Forecast Values")
+    fc_df = pd.DataFrame({
+        "Month": [d.strftime("%b %Y") for d in fc_dates],
+        "Forecast": fc_mean.values.round(1),
+        "Lower 80% CI": fc_ci.iloc[:, 0].values.round(1),
+        "Upper 80% CI": fc_ci.iloc[:, 1].values.round(1),
+    })
+    st.dataframe(fc_df, use_container_width=True, hide_index=True)
+
+    with st.expander("Model diagnostics (SARIMAX summary)"):
+        if hasattr(fit_obj, "summary"):
+            st.text(str(fit_obj.summary()))
+        else:
+            st.info("Diagnostics unavailable.")
+
+    # ── Per-issue ARIMA ──
+    cL("Issue-Level Forecasts (Top 4 Complaint Categories)")
+    st.caption(
+        "Individual ARIMA(1,1,1) models fitted per issue category using monthly negative review count. "
+        "Rising slopes indicate worsening complaint volumes; declining slopes suggest improvement."
+    )
+
+    top4 = df_ts[df_ts["sentiment"] == "Negative"]["issue"].value_counts().head(4).index.tolist()
+    cols_fc = st.columns(2)
+    for idx, issue in enumerate(top4):
+        issue_neg = (
+            df_ts[(df_ts["issue"] == issue) & (df_ts["sentiment"] == "Negative")]
+            .groupby("month").size()
+            .reindex(monthly_vol["month"], fill_value=0)
+        )
+        issue_neg.index = pd.DatetimeIndex(issue_neg.index)
+        issue_neg = issue_neg.sort_index()
+        if len(issue_neg) < 6:
+            continue
+        _, fc_m, fc_c, _ = _run_arima(issue_neg, steps=4, seasonal=False)
+        if fc_m is None:
+            continue
+        fc_dates_i = [issue_neg.index[-1] + pd.DateOffset(months=i + 1) for i in range(4)]
+        fig_i = go.Figure()
+        fig_i.add_trace(go.Scatter(x=issue_neg.index, y=issue_neg.values, mode="lines+markers",
+                                    name="Actual",
+                                    line=dict(color=ISSUE_COLORS.get(issue, BRAND), width=2)))
+        if fc_c is not None:
+            fig_i.add_trace(go.Scatter(
+                x=fc_dates_i + fc_dates_i[::-1],
+                y=list(fc_c.iloc[:, 1]) + list(fc_c.iloc[:, 0])[::-1],
+                fill="toself", fillcolor="rgba(220,38,38,0.10)",
+                line=dict(color="rgba(0,0,0,0)"), name="80% CI",
+            ))
+        fig_i.add_trace(go.Scatter(x=fc_dates_i, y=fc_m.values, mode="lines+markers",
+                                    name="Forecast",
+                                    line=dict(color=NEG, width=2, dash="dash"),
+                                    marker=dict(symbol="diamond", size=6)))
+        fig_i.update_layout(**plot_layout(
+            height=240,
+            title=dict(text=issue, font=dict(size=11, color="#1e293b")),
+            showlegend=False, margin=dict(t=36, b=28, l=16, r=16),
+        ))
+        with cols_fc[idx % 2]:
+            chart_card(fig_i)
+
+    cL("Forecasting Observations")
+    trend_dir = "rising" if fc_mean.values[-1] > fc_mean.values[0] else "declining"
+    color_key = "red" if (trend_dir == "rising" and "Negative" in forecast_target) else "green"
+    ic(INS[color_key],
+       f"<b>{model_type} Forecast — {forecast_target}</b>: The model projects a "
+       f"<b>{trend_dir}</b> trend over the next {fc_steps} months, from "
+       f"{fc_mean.values[0]:.1f} to {fc_mean.values[-1]:.1f}. "
+       f"{'Warrants monitoring and pre-emptive operational action.' if trend_dir == 'rising' and 'Negative' in forecast_target else 'Suggests improving customer experience outcomes.'}")
+
+    ic(INS["blue"],
+       "<b>Interpretation guide</b> — ARIMA(1,1,1) models the review series using one lagged "
+       "value, one differencing step, and one moving-average term. SARIMA(1,1,1)(1,1,1,12) "
+       "additionally captures annual seasonality. The shaded band is the 80% confidence interval.")
+
+    ic(INS["amber"],
+       "<b>Limitation</b> — Relative date parsing introduces ±1-month uncertainty per review. "
+       "Months with fewer than 5 reviews produce noisy estimates. Structural changes "
+       "(new station openings, regulatory actions, fuel price shocks) are not captured by the model.")
 
 
 # ── Tab 6: Station Deep-Dive ───────────────────────────────────────────────────
